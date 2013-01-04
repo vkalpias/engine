@@ -228,7 +228,6 @@ pc.extend(pc.resources, function () {
 
         // Texture not in cache, we need to create a new one and load it.
         if (!texture) {
-            var ext = pc.path.getExtension(url);
             var format = (ext === '.png') ? pc.gfx.PIXELFORMAT_R8_G8_B8_A8 : pc.gfx.PIXELFORMAT_R8_G8_B8;
             texture = new pc.gfx.Texture({
                 format: format
@@ -243,17 +242,31 @@ pc.extend(pc.resources, function () {
             if (this._textureCache) {
                 this._textureCache.addTexture(url, texture);
             }
-            
-            // Make a new request for the Image resource at the same priority as the Model was requested.
-            this._loader.request([new pc.resources.ImageRequest(url)], options.priority, function (resources) {
-                texture.setSource(resources[url]);
-            }, function (errors, resources) {
-                Object.keys(errors).forEach(function (key) {
-                   logERROR(errors[key]);    
-                });
-            }, function (progress) {
-                // no progress features
-            }, options);
+
+            var ext = pc.path.getExtension(url);
+            if (ext === '.dds') {
+                // Make a new request for the Image resource at the same priority as the Model was requested.
+                this._loader.request([new pc.resources.BinaryRequest(url)], options.priority, function (resources) {
+
+                }, function (errors, resources) {
+                    Object.keys(errors).forEach(function (key) {
+                       logERROR(errors[key]);    
+                    });
+                }, function (progress) {
+                    // no progress features
+                }, options);
+            } else {
+                // Make a new request for the Image resource at the same priority as the Model was requested.
+                this._loader.request([new pc.resources.ImageRequest(url)], options.priority, function (resources) {
+                    texture.setSource(resources[url]);
+                }, function (errors, resources) {
+                    Object.keys(errors).forEach(function (key) {
+                       logERROR(errors[key]);    
+                    });
+                }, function (progress) {
+                    // no progress features
+                }, options);
+            }
         }
 
         return texture;

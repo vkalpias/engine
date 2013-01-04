@@ -440,10 +440,11 @@ pc.extend(pc.gfx, function () {
                     gl.texImage2D(gl.TEXTURE_2D, 0, this._glInternalFormat, this._glFormat, this._glPixelType, pixels);
                 } else {
                     // Upload the byte array
-                    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
                     if (this._compressed) {
+                        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
                         gl.compressedTexImage2D(gl.TEXTURE_2D, 0, this._glInternalFormat, this._width, this._height, 0, pixels);
                     } else {
+                        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
                         gl.texImage2D(gl.TEXTURE_2D, 0, this._glInternalFormat, this._width, this._height, 0, this._glFormat, this._glPixelType, pixels);
                     }
                 }
