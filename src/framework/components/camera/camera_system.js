@@ -133,6 +133,7 @@ pc.extend(pc.fw, function () {
         initializeComponentData: function (component, data, properties) {
             data = data || {};
             data.camera = new pc.scene.CameraNode();
+            data.composer = new pc.gfx.EffectComposer();
 
             if (this.context.designer && !component.entity.hasLabel("pc:designer")) {
                 var material = new pc.scene.BasicMaterial();

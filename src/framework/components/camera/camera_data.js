@@ -28,6 +28,7 @@ pc.extend(pc.fw, function () {
 
         // not serialized
         this.camera = null;
+        this.composer = null;
     };
     CameraComponentData = pc.inherits(CameraComponentData, pc.fw.ComponentData);
     

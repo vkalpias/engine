@@ -88,6 +88,7 @@ pc.extend(pc.fw, function () {
             this.initializeComponentData(component, data, []);
 
             this.fire('add', entity, component);
+            entity.fire('addcomponent', component);
 
             return component;
         },
@@ -107,6 +108,7 @@ pc.extend(pc.fw, function () {
             delete entity[this.id];
             delete entity.c[this.id];
             this.fire('remove', entity, record.data);                
+            entity.fire('addcomponent', component);
         },
 
         /**

@@ -83,55 +83,25 @@ pc.extend(pc.fw, function () {
         }];
         this.exposeProperties();
 
-        pc.fw.ComponentSystem.on('update', this.onUpdate, this);
+        this.on('remove', this.onRemove, this);
     }
     BloomComponentSystem = pc.inherits(BloomComponentSystem, pc.fw.ComponentSystem);
     
     pc.extend(BloomComponentSystem.prototype, {
         initializeComponentData: function (component, data, properties) {
+            data = data || {};
+            data.effect = new pc.gfx.BloomEffect();
+
+            if (component.entity.camera) {
+                component.entity.camera.addEffect(data.effect);
+            }
+
             BloomComponentSystem._super.initializeComponentData.call(this, component, data, ['bloomThreshold', 'blurAmount', 'bloomIntensity', 'baseIntensity', 'bloomSaturation', 'baseSaturation']);
         },
 
-        onUpdate: function (dt) {
-            var components = this.store;
-            for (var id in components) {
-                if (components.hasOwnProperty(id)) {
-                    var entity = components[id].entity;
-                    var componentData = components[id].data;
-
-                    this.context.scene.enqueue("post", (function(data, e, c) {
-                            return function () {
-                                if (e.camera) {
-                                    var offscreen = e.camera.offscreen;
-                                    var camera = e.camera.camera;
-                                    var currentEntity = c.systems.camera.current;
-                                    var currentCamera = currentEntity.camera.camera;
-
-                                    if (offscreen && (currentCamera === camera)) {
-                                        var input = camera.getRenderTarget();
-                                        var output = new pc.gfx.RenderTarget(pc.gfx.FrameBuffer.getBackBuffer());
-
-                                        // HACK: Remove when BitBucket #70 is fixed
-                                        data.bloomThreshold = typeof data.bloomThreshold == "string" ? parseFloat(data.bloomThreshold) : data.bloomThreshold;
-                                        data.blurAmount = typeof data.blurAmount == "string" ? parseFloat(data.blurAmount) : data.blurAmount;
-                                        data.bloomIntensity = typeof data.bloomIntensity == "string" ? parseFloat(data.bloomIntensity) : data.bloomIntensity;
-                                        data.baseIntensity = typeof data.baseIntensity == "string" ? parseFloat(data.baseIntensity) : data.baseIntensity;
-                                        data.bloomSaturation = typeof data.bloomSaturation == "string" ? parseFloat(data.bloomSaturation) : data.bloomSaturation;
-                                        data.baseSaturation = typeof data.baseSaturation == "string" ? parseFloat(data.baseSaturation) : data.baseSaturation;
-
-                                        pc.gfx.post.bloom.render(input, output, {
-                                            bloomThreshold: data.bloomThreshold,
-                                            blurAmount: data.blurAmount,
-                                            bloomIntensity: data.bloomIntensity,
-                                            baseIntensity: data.baseIntensity,
-                                            bloomSaturation: data.bloomSaturation,
-                                            baseSaturation: data.baseSaturation
-                                        });
-                                    }
-                                }
-                            }
-                        })(componentData, entity, this.context));
-                }
+        onRemove: function (entity, data) {
+            if (entity.camera) {
+                entity.camera.removeEffect(data.effect);
             }
         }
     });
