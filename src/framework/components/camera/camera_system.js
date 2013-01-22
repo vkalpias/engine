@@ -76,12 +76,6 @@ pc.extend(pc.fw, function () {
             type: "boolean",
             defaultValue: true            
         }, {
-            name: "offscreen",
-            displayName: "Offscreen",
-            description: "Render to an offscreen buffer",
-            type: "boolean",
-            defaultValue: false
-        }, {
             name: "camera",
             exposed: false
         }, {
@@ -92,7 +86,6 @@ pc.extend(pc.fw, function () {
         this.exposeProperties();
 
         this._currentEntity = null;
-        this._currentNode = null;
 
         this.on('remove', this.onRemove, this);
         pc.fw.ComponentSystem.on('toolsUpdate', this.toolsUpdate, this);
@@ -116,7 +109,6 @@ pc.extend(pc.fw, function () {
         set: function (entity) {
             if (entity === null) {
                 this._currentEntity = null;
-                this._currentNode = null;
                 return;
             }
 
@@ -125,7 +117,6 @@ pc.extend(pc.fw, function () {
             }
             
             this._currentEntity = entity;
-            this._currentNode = entity.camera.data.camera;
         }
     });
 
@@ -171,7 +162,7 @@ pc.extend(pc.fw, function () {
                 data.model = model;
             }
 
-            properties = ['model', 'camera', 'clearColor', 'fov', 'orthoHeight', 'activate', 'nearClip', 'farClip', 'offscreen', 'projection'];
+            properties = ['model', 'camera', 'clearColor', 'fov', 'orthoHeight', 'activate', 'nearClip', 'farClip', 'projection'];
     
             CameraComponentSystem._super.initializeComponentData.call(this, component, data, properties);
 
@@ -186,39 +177,19 @@ pc.extend(pc.fw, function () {
          * @name pc.fw.CameraComponentSystem#frameBegin
          */
         frameBegin: function () {
-            var camera = this._currentNode;
-            if (!camera) {
+            var cameraEntity = this._currentEntity;
+            if (!cameraEntity) {
                 return;
             }
 
             var device = pc.gfx.Device.getCurrent();
             var w = device.canvas.width;
             var h = device.canvas.height;
+            var camera = cameraEntity.camera.data.camera;
             var target = camera.getRenderTarget();
             var viewport = target.getViewport();
-            var texture = target.getFrameBuffer().getTexture();
-            var offscreen = this._currentEntity.camera.data.offscreen;
-            if (offscreen) {
-                if (!texture || (viewport.width !== w) || (viewport.height !== h)) {
-                    var offscreenBuffer = new pc.gfx.FrameBuffer(w, h, true);
-                    var offscreenTexture = offscreenBuffer.getTexture();
-                    offscreenTexture.minFilter = pc.gfx.FILTER_LINEAR;
-                    offscreenTexture.magFilter = pc.gfx.FILTER_LINEAR;
-                    offscreenTexture.addressU = pc.gfx.ADDRESS_CLAMP_TO_EDGE;
-                    offscreenTexture.addressV = pc.gfx.ADDRESS_CLAMP_TO_EDGE;
-                    camera.setRenderTarget(new pc.gfx.RenderTarget(offscreenBuffer));
-                }
-            } else {
-                if (texture) {
-                    var backBuffer = pc.gfx.FrameBuffer.getBackBuffer();
-                    camera.setRenderTarget(new pc.gfx.RenderTarget(backBuffer));
-                }
-            }
-
-            var viewport = camera.getRenderTarget().getViewport();
-            var aspect = viewport.width / viewport.height;
-            if (aspect !== camera.getAspectRatio()) {
-                camera.setAspectRatio(aspect);
+            if ((viewport.width !== w) || (viewport.height !== h)) {
+                this._currentEntity.camera.resize(w, h);
             }
         },
 
@@ -227,12 +198,7 @@ pc.extend(pc.fw, function () {
          * @function
          * @name pc.fw.CameraComponentSystem#frameEnd
          */
-        frameEnd: function () {
-            var camera = this._currentNode;
-            if (!camera) {
-                return;
-            }
-        },
+        frameEnd: function () {},
 
         onRemove: function (entity, data) {
             // If this is the current camera then clear it

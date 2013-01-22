@@ -15,7 +15,7 @@ pc.extend(pc.gfx, function () {
      * @name pc.gfx.EffectComposer
      * @class A post effect composer.
      */
-    var EffectComposer = function (target) {
+    var EffectComposer = function () {
         // Create the vertex format
         var vertexFormat = new pc.gfx.VertexFormat();
         vertexFormat.begin();
@@ -39,13 +39,22 @@ pc.extend(pc.gfx, function () {
         this.effects = [];
         this.device = pc.gfx.Device.getCurrent();
 
-        this.srcTarget = target;
-        this.dstTarget = target.clone();
+        this.srcTarget = null;
+        this.dstTarget = null;
     }
 
     EffectComposer.prototype = {
+        setInput: function (target) {
+            var srcBuffer = target.getFrameBuffer();
+            var dstBuffer = new pc.gfx.FrameBuffer(srcBuffer.getWidth(), srcBuffer.getHeight(), false, false);
+            var dstTarget = new pc.gfx.RenderTarget(dstBuffer);
+
+            this.srcTarget = target;
+            this.dstTarget = dstTarget;
+        },
+
         drawFullscreenQuad: function (target, program) {
-            device = this.device;
+            var device = this.device;
             device.setRenderTarget(target);
             device.updateBegin();
             device.updateLocalState(quadState);

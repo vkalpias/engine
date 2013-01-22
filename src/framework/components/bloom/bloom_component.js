@@ -26,7 +26,7 @@ pc.extend(pc.fw, function () {
     };
     BloomComponent = pc.inherits(BloomComponent, pc.fw.Component);
 
-    pc.extend(CameraComponent.prototype, {
+    pc.extend(BloomComponent.prototype, {
         addComponent: function (component) {
             if (component instanceof pc.fw.CameraComponent) {
                 component.addEffect(this.data.effect);

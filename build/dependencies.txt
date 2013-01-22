@@ -52,6 +52,7 @@
 ../src/graphics/graphics_device.js
 ../src/graphics/post/post_post.js
 ../src/graphics/post/post_bloom.js
+../src/graphics/post/post_composer.js
 ../src/graphics/programlib/programlib_programlib.js
 ../src/graphics/programlib/programlib_basic.js
 ../src/graphics/programlib/programlib_depth.js

@@ -16,7 +16,6 @@ pc.extend(pc.fw, function () {
     * @property {Number} aspectRatio The aspect ratio of the camera. This is the ratio of width divided by height. Default to 16/9.
     * @property {pc.scene.Projection} projection The type of projection used to render the camera.
     * @property {Boolean} activate Activate on load. If true the {@link pc.fw.CameraComponentSystem} will set {@link pc.fw.CameraComponentSystem#current} to this camera as soon as it is loaded.
-    * @property {Boolean} offscreen Render offscreen. If true, the camera will render to an offscreen buffer.
     */
     var CameraComponent = function CameraComponent(system, entity) {
         // Bind event to update hierarchy if camera node changes
@@ -31,6 +30,43 @@ pc.extend(pc.fw, function () {
     CameraComponent = pc.inherits(CameraComponent, pc.fw.Component);
 
     pc.extend(CameraComponent.prototype, {
+        addEffect: function (effect) {
+            var numEffects = this.data.composer.effects.length;
+            this.renderOffscreen(numEffects > 0);
+
+            this.data.composer.effects.push(effect);
+        },
+
+        renderOffscreen: function (offscreen) {
+            if (offscreen) {
+                var device = pc.gfx.Device.getCurrent();
+                var w = device.canvas.width;
+                var h = device.canvas.height;
+
+                var offscreenBuffer = new pc.gfx.FrameBuffer(w, h, true);
+                var offscreenTexture = offscreenBuffer.getTexture();
+                offscreenTexture.minFilter = pc.gfx.FILTER_NEAREST;
+                offscreenTexture.magFilter = pc.gfx.FILTER_NEAREST;
+                offscreenTexture.addressU = pc.gfx.ADDRESS_CLAMP_TO_EDGE;
+                offscreenTexture.addressV = pc.gfx.ADDRESS_CLAMP_TO_EDGE;
+                this.data.camera.setRenderTarget(new pc.gfx.RenderTarget(offscreenBuffer));
+            } else {
+                var backBuffer = pc.gfx.FrameBuffer.getBackBuffer();
+                camera.setRenderTarget(new pc.gfx.RenderTarget(backBuffer));
+            }
+        },
+
+        resize: function (x, y) {
+            var numEffects = this.data.composer.effects.length;
+            this.renderOffscreen(numEffects > 0);
+
+            var viewport = camera.getRenderTarget().getViewport();
+            var aspect = viewport.width / viewport.height;
+            if (aspect !== camera.getAspectRatio()) {
+                camera.setAspectRatio(aspect);
+            }
+        },
+
         /**
          * @function 
          * @name pc.fw.CameraComponent#screenToWorld
@@ -52,6 +88,7 @@ pc.extend(pc.fw, function () {
             }        
             this.entity.addChild(newValue);
         },
+
         onSetClearColor: function (name, oldValue, newValue) {
             var color = parseInt(newValue);
             this.data.camera.getClearOptions().color = [
@@ -61,24 +98,27 @@ pc.extend(pc.fw, function () {
                 ((color) & 0xff) / 255.0
             ];
         },
+
         onSetFov: function (name, oldValue, newValue) {
             this.data.camera.setFov(newValue);
         },
+
         onSetOrthoHeight: function (name, oldValue, newValue) {
             this.data.camera.setOrthoHeight(newValue);
         },
+
         onSetNearClip: function (name, oldValue, newValue) {
             this.data.camera.setNearClip(newValue);
         },
+
         onSetFarClip: function (name, oldValue, newValue) {
             this.data.camera.setFarClip(newValue);
         },
+
         onSetProjection: function (name, oldValue, newValue) {
             this.data.camera.setProjection(newValue);
         }
     });
-
-    
 
     return {
         CameraComponent: CameraComponent
