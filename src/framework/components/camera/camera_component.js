@@ -31,10 +31,12 @@ pc.extend(pc.fw, function () {
 
     pc.extend(CameraComponent.prototype, {
         addEffect: function (effect) {
-            var numEffects = this.data.composer.effects.length;
-            this.renderOffscreen(numEffects > 0);
+            if (this.data.composer) {
+                var numEffects = this.data.composer.effects.length;
+                this.renderOffscreen(numEffects > 0);
 
-            this.data.composer.effects.push(effect);
+                this.data.composer.effects.push(effect);
+            }
         },
 
         renderOffscreen: function (offscreen) {

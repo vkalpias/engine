@@ -108,7 +108,7 @@ pc.extend(pc.fw, function () {
             delete entity[this.id];
             delete entity.c[this.id];
             this.fire('remove', entity, record.data);                
-            entity.fire('addcomponent', component);
+            entity.fire('removecomponent', component);
         },
 
         /**

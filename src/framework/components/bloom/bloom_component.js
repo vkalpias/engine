@@ -40,27 +40,27 @@ pc.extend(pc.fw, function () {
         },
 
         onSetBloomThreshold: function (name, oldValue, newValue) {
-            this.data.pass.bloomThreshold = newValue;
+            this.data.bloomThreshold = newValue;
         },
 
         onSetBlurAmount: function (name, oldValue, newValue) {
-            this.data.pass.blurAmount = newValue;
+            this.data.blurAmount = newValue;
         },
 
         onSetBloomIntensity: function (name, oldValue, newValue) {
-            this.data.pass.bloomIntensity = newValue;
+            this.data.bloomIntensity = newValue;
         },
 
         onSetBaseIntensity: function (name, oldValue, newValue) {
-            this.data.pass.baseIntensity = newValue;
+            this.data.baseIntensity = newValue;
         },
 
         onSetBloomSaturation: function (name, oldValue, newValue) {
-            this.data.pass.bloomSaturation = newValue;
+            this.data.bloomSaturation = newValue;
         },
 
         onSetBaseSaturation: function (name, oldValue, newValue) {
-            this.data.pass.baseSaturation = newValue;
+            this.data.baseSaturation = newValue;
         }
     });
 
