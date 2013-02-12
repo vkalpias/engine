@@ -1,6 +1,7 @@
 pc.gfx.programlib.particle = {
     generateKey: function (options) {
         var key = "particle";
+        if (options.fog) key += "_fog";
         return key;
     },
 
@@ -74,9 +75,8 @@ pc.gfx.programlib.particle = {
     },
 
     generateFragmentShader: function (options) {
-        var code = "";
-
-        code += "precision mediump float;\n";
+        var getSnippet = pc.gfx.programlib.getSnippet;
+        var code = getSnippet('fs_precision');
 
         // FRAGMENT SHADER INPUTS: VARYINGS
         code += "varying vec2 vUv0;\n";
@@ -87,11 +87,22 @@ pc.gfx.programlib.particle = {
         code += "uniform sampler2D texture_colorMap;\n";
         code += "uniform sampler2D texture_rampMap;\n\n";
 
-        code += "void main(void)\n";
-        code += "{\n";
+        if (options.fog) {
+            code += getSnippet('fs_fog_decl');
+        }
+
+        // FRAGMENT SHADER BODY
+        code += getSnippet('common_main_begin');
+
         code += "    vec4 colorMult = texture2D(texture_rampMap, vec2(vAge, 0.5)) * vColor;\n";
         code += "    gl_FragColor = texture2D(texture_colorMap, vUv0) * colorMult;\n";
-        code += "}";
+
+        // Fog
+        if (options.fog) {
+            code += getSnippet('fs_fog');
+        }
+
+        code += getSnippet('common_main_end');
 
         return code;
     }

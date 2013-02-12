@@ -112,16 +112,18 @@ pc.extend(pc.scene, function () {
         this.numParticles = 20;
         this.lifeTime = 2;
         this.timeRange = 2;
-        this.startSize = 50;
-        this.endSize = 90;
-        this.velocity = [0, 60, 0];
-        this.velocityRange = [15, 15, 15];
-        this.worldAcceleration = [0, -20, 0];
+        this.startSize = 0.2;
+        this.endSize = 0.36;
+        this.velocity = [0, 0.24, 0];
+        this.velocityRange = [0.06, 0.06, 0.06];
+        this.worldAcceleration = [0, -0.08, 0];
         this.spinSpeedRange = 4;
         
         var device = pc.gfx.Device.getCurrent();
         var programLib = device.getProgramLibrary();
-        var program = programLib.getProgram("particle");
+        var program = programLib.getProgram("particle", { 
+            fog: true 
+        });
 
         // Create the particle vertex format
         var particleFormat = new pc.gfx.VertexFormat();
