@@ -27,7 +27,7 @@ pc.extend(pc.fw, function () {
         * @description Access the {@link pc.fw.ComponentData} directly. Usually you should
         * access the data properties via the individual properties as modifying this data directly 
         * will not fire 'set' events.
-        * @type {Object}
+        * @type {pc.fw.ComponentData} 
         */
         get data() {
             var record = this.system.store[this.entity.getGuid()];
@@ -59,7 +59,7 @@ pc.extend(pc.fw, function () {
                             this.fire('set', prop.name, oldValue, value);                            
                         }
                     });
-                };
+                }
             }.bind(this));
         }
     };

@@ -73,7 +73,7 @@ pc.extend(pc.fw, function () {
             type: "number",
             options: {
                 min: 0,
-                step: 0.1,
+                step: 0.1
             },
             defaultValue: 0.5
         }, {
@@ -83,7 +83,7 @@ pc.extend(pc.fw, function () {
             type: "number",
             options: {
                 min: 0,
-                step: 0.1,
+                step: 0.1
             },
             defaultValue: 0.5
         }, {
@@ -99,14 +99,14 @@ pc.extend(pc.fw, function () {
         format.addElement(new pc.gfx.VertexElement("vertex_position", 3, pc.gfx.VertexElementType.FLOAT32));
         format.end();
 
-        var vertexBuffer = new pc.gfx.VertexBuffer(format, 4, pc.gfx.VertexBufferUsage.STATIC);
+        var vertexBuffer = new pc.gfx.VertexBuffer(format, 4);
         var positions = new Float32Array(vertexBuffer.lock());
         positions.set([
             -0.5, 0, -0.5, -0.5, 0, 0.5, 0.5, 0, 0.5, 0.5, 0, -0.5
         ]);
         vertexBuffer.unlock();
 
-        var indexBuffer = new pc.gfx.IndexBuffer(pc.gfx.IndexFormat.UINT8, 8);
+        var indexBuffer = new pc.gfx.IndexBuffer(pc.gfx.INDEXFORMAT_UINT8, 8);
         var indices = new Uint8Array(indexBuffer.lock());
         indices.set([
             0,1,1,2,2,3,3,0
@@ -116,7 +116,7 @@ pc.extend(pc.fw, function () {
         this.mesh = new pc.scene.Mesh();
         this.mesh.vertexBuffer = vertexBuffer;
         this.mesh.indexBuffer[0] = indexBuffer;
-        this.mesh.primitive[0].type = pc.gfx.PrimType.LINES;
+        this.mesh.primitive[0].type = pc.gfx.PRIMITIVE_LINES;
         this.mesh.primitive[0].base = 0;
         this.mesh.primitive[0].count = indexBuffer.getNumIndices();
         this.mesh.primitive[0].indexed = true;
@@ -157,11 +157,11 @@ pc.extend(pc.fw, function () {
         createFixtureDef: function(entity, componentData) {
             var fixtureDef = new b2FixtureDef();
                 
-            fixtureDef.density = componentData['density'];
-            fixtureDef.friction = componentData['friction'];
-            fixtureDef.restitution = componentData['restitution'];                        
+            fixtureDef.density = componentData.density;
+            fixtureDef.friction = componentData.friction;
+            fixtureDef.restitution = componentData.restitution;
             fixtureDef.shape = new b2PolygonShape();
-            fixtureDef.shape.SetAsBox(componentData['x'], componentData['y']);
+            fixtureDef.shape.SetAsBox(componentData.x, componentData.y);
             fixtureDef.userData = entity;
 
             return fixtureDef;
@@ -204,7 +204,7 @@ pc.extend(pc.fw, function () {
             var yi = this.context.systems.body2d.yi;
             var ri = this.context.systems.body2d.ri;
 
-            for (id in components) {
+            for (var id in components) {
                 var entity = components[id].entity;
                 var data = components[id].data;
             
@@ -213,7 +213,7 @@ pc.extend(pc.fw, function () {
                     this.context.root.addChild(data.model.graph);
                 }
             
-                var s = []
+                var s = [];
                 s[xi] = data.x * 2;
                 s[yi] = data.y * 2;
                 s[ri] = 0.5 * 2;
@@ -223,7 +223,7 @@ pc.extend(pc.fw, function () {
                 var root = model.graph;
                 root.setPosition(entity.getPosition());
                 root.setRotation(entity.getRotation());
-                root.setLocalScale(s[0], s[1], s[2])
+                root.setLocalScale(s[0], s[1], s[2]);
             }
         }
     });

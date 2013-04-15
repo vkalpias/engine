@@ -9,37 +9,12 @@ pc.extend(pc.audio, function () {
             this.position = pc.math.vec3.create();
             this.velocity = pc.math.vec3.create();
             
-            this.panner = manager.context.createPanner();
-            
-            //this.source.disconnect(0);
-            //this.source.connect(this.panner);
-            //this.panner.connect(manager.context.destination);
+            var context = manager.context;
+            this.panner = context.createPanner();
         };
         Channel3d = pc.inherits(Channel3d, pc.audio.Channel);
         
-        Channel3d.prototype = pc.extend(Channel3d.prototype, {
-            play: function () {
-                this.source = this.manager.context.createBufferSource();
-                this.source.buffer = this.sound.buffer;
-                this.source.disconnect(0);
-                this.source.connect(this.panner);
-                this.panner.connect(this.manager.context.destination);
-
-                // Initialize volume and loop
-                this.setVolume(this.volume);
-                this.setLoop(this.loop);
-
-                if (!this.paused) {
-                    // First call to play(), store the startedAt time to use when restarting if paused
-                    this.source.noteOn(0);
-                    this.startedAt = this.manager.context.currentTime;
-                } else {
-                    var startTime = (this.pausedAt - this.startedAt) % this.source.buffer.duration;
-                    this.source.noteGrainOn(0, startTime, this.source.buffer.duration - startTime);
-                    this.paused = false;
-                }                
-            },
-            
+        Channel3d.prototype = pc.extend(Channel3d.prototype, {            
             getPosition: function () {
                 return this.position;
             },
@@ -80,7 +55,25 @@ pc.extend(pc.audio, function () {
             
             setRollOffFactor: function (factor) {
                 this.panner.rolloffFactor = factor;
-            }            
+            },
+
+            /**
+            * @private
+            * @function
+            * @name pc.audio.Channel3d#_createSource
+            * @description Create the buffer source and connect it up to the correct audio nodes 
+            */
+            _createSource: function () {
+                var context = this.manager.context;
+
+                this.source = context.createBufferSource();
+                this.source.buffer = this.sound.buffer;
+
+                // Connect up the nodes
+                this.source.connect(this.panner);
+                this.panner.connect(this.gain);
+                this.gain.connect(context.destination);
+            }
         });        
     } else if (pc.audio.hasAudio()) {
         // temp vector storage
@@ -89,7 +82,7 @@ pc.extend(pc.audio, function () {
         
         // Fall off function which should be the same as the one in the Web Audio API, 
         // taken from OpenAL
-        function fallOff (posOne, posTwo, refDistance, maxDistance, rolloffFactor) {
+        var fallOff = function (posOne, posTwo, refDistance, maxDistance, rolloffFactor) {
             var min = 0;
             
             offset = pc.math.vec3.subtract(posOne, posTwo, offset);

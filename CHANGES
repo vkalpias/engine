@@ -2,6 +2,259 @@
 PlayCanvas Runtime Changes 
 --------------------------
 
+--------
+v0.102.3
+--------
+* [FIX] Updated to latest Web Audio API spec. PlayCanvas apps no longer crash in Firefox Nightly.
+
+--------
+v0.102.2
+--------
+* [FIX] GraphNode right, up and forwards properties now work.
+* [FIX] pc.math.multiply now creates a result quaternion correctly if not supplied as parameter.
+
+--------
+v0.102.1
+--------
+* [FIX] Don't add collision meshes to the hierarchy.
+
+--------
+v0.102.0
+--------
+* Added new collision mesh component.
+
+--------
+v0.101.1
+--------
+* [FIX] Animation blending works again (broken in 0.99.1).
+
+--------
+v0.101.0
+--------
+* Documented almost all of pc.math and renamed a number of functions for uniformity.
+
+--------
+v0.100.0
+--------
+* Added pc.math.smoothstep and pc.math.smootherstep.
+* pc.math.pot -> pc.math.powerOfTwo
+* Removed pc.math trigonometric functions.
+* Documented the whole quaternion API.
+* Allow skybox to be rendered at any time with any camera (much more robust and faster too!).
+
+-------
+v0.99.1
+-------
+* Update a skeleton's graph if a time is explicitly set. Prevents you seeing previous animation frame on playing an anim from an entity script, since entity script udpates occur after animation component update.
+
+-------
+v0.99.0
+-------
+* Aspect ratio of Designer-rendered cameras is now fixed at 16/9.
+* Exposed aspectRatio on camera component.
+* Added right, up and forwards properties to pc.scene.GraphNode.
+* Update a skeleton's interpolated keyframes immediately upon setting a new time.
+
+-------
+v0.98.6
+-------
+* Added documenation for pc.fw.Entity#clone()
+
+-------
+v0.98.5
+-------
+* Soften PCF shadows.
+
+-------
+v0.98.4
+-------
+* [FIX] Prevent GLSL pow function from being passed zero which causes glitches on Mac OS X.
+
+-------
+v0.98.3
+-------
+* Optimize setting of vertex buffer attributes in the graphics device.
+* Simplified and optimized GLSL lighting code.
+* [FIX] Specular lighting calculation now takes the light color into account.
+
+-------
+v0.98.2
+-------
+* Renamed enums for blend modes and primitive types.
+* Disable blending for opaque meshes.
+* Add a blend type to a material that specifies how it should blend when rendered.
+
+-------
+v0.98.1
+-------
+* Added pc.audio.Channel#getDuration() to safely access the duration of the audio clip
+* Added pc.string.toBool() to convert a string value to a boolean value
+
+-------
+v0.97.2
+-------
+* [FIX] Work around presumed GLSL compiler bug on Mac where directional light appears inverted in Y axis. Code should be equivalent.
+
+-------
+v0.97.1
+-------
+* Optimized WebGL texture state setting.
+* [FIX] Phong shader now generates correct GLSL for lightmapping with no lights.
+
+-------
+v0.97.0
+-------
+* Add pc.fw.AudioSourceComponent#unpause() to resume playback from paused (instead of using play() which starts from the beginning of the sound)
+* [FIX] Tabbing away correctly suspends audio in Firefox
+
+-------
+v0.96.6
+-------
+* [FIX] Use parentNode value for element if touch event lands on an SVG element. [Properly this time]
+
+-------
+v0.96.5
+-------
+* [FIX] Use parentNode value for element if touch event lands on an SVG element.
+
+-------
+v0.96.4
+-------
+* [FIX] Fix so that touch position is not null in Firefox when using SVG elements
+
+-------
+v0.96.3
+-------
+* [FIX] Fix to touch events when attached to elements without width and height attributes (i.e. not the canvas)
+
+-------
+v0.96.2
+-------
+* [FIX] No longer call preventDefault() in TouchDevice event handling. User should call it themselves.
+
+-------
+v0.96.1
+-------
+* [FIX] Make sure physics libraries are loaded before loading Entities
+
+-------
+v0.96.0
+-------
+* loadFromTOC function for pc.fw.Application
+* Added AssetCache for preloading asset metadata
+* Added pc.fw.ContentFile for where preloaded data is stored
+* pc.gfx.VertexBufferUsage -> pc.gfx.BUFFER_
+* pc.gfx.IndexFormat -> pc.gfx.INDEXFORMAT_
+* Restore gl format of index buffer that is used when primitive is drawn
+* Made ResourceLoaderDisplay prettier
+* Deprecate AssetResourceHandler and EntityResourceHandler
+
+-------
+v0.95.0
+-------
+* Added Entity#clone() method
+* Support opacity on shadow maps (useful for alpha-tested foliage)
+* Check if isActive() is true before syncing entity to rigidbody
+
+-------
+v0.94.3
+-------
+* [FIX] Procedural cylinder code was generating caps incorrectly, causing NaNs to be generated for tangents.
+* Renormalize normal and tangent in case the model matrix has a scale in it.
+
+-------
+v0.94.2
+-------
+* Better scaling function for normal map.
+* [FIX] Fixes for when no lights are enabled.
+
+-------
+v0.94.1
+-------
+* Switched engine back to using precalculated tangents, but can be switched on a device flag.
+* Change spotlight boundary interpolation.
+* Fix shadow interaction with non-shadowcasting lights.
+* All Phong lighting now done in world space.
+* Reflection maps now lerp towards diffuse color based on reflectivity.
+* Fix WebGL errors about texture completeness (unitialised texture objects).
+
+-------
+v0.94.0
+-------
+* Engine no longer generate vertex tangents. Instead, it perturbs surface normals using a normal map in the fragment shader.
+* Added support for heightmap bump mapping.
+* Added support for gloss maps (per-pixel shininess).
+* Specular shininess no longer queried from specular map alpha channel (use gloss map instead).
+* Per pixel opacity no longer queried from diffuse map alpha channel (use opacity map instead).
+
+-------
+v0.93.1
+-------
+* Physics docs corrections.
+
+-------
+v0.93.0
+-------
+* Renamed collisionbox.size to collisionbox.halfExtents
+
+-------
+v0.92.0
+-------
+* First public version of rigidbody component
+
+-------
+v0.91.0
+-------
+* Renamed 'body3d' component to 'rigidbody' component
+* Added isActive() and activate() to rigidbody component
+* Better argument options for applyForce() and applyImpulse()
+
+-------
+v0.90.2
+-------
+* relativePoint for Body3d.applyForce and Body3d.applyImpulse is now an optional argument, defaults to 0,0,0
+* [FIX] Default values for body3d and collisionbox
+
+-------
+v0.90.1
+-------
+* [FIX] Activate body inside a syncTransform() so that livelink movement re-activates
+
+-------
+v0.90.0
+-------
+* [FIX] GraphNode#rotate() and GraphNode#rotateLocal() take can accept a single vector argument like in the docs
+* Replace Body3d 'static' with 'bodyType' which can be dynamic, kinematic or static.
+* hasEvent() added to event API to check whether an handler is bound
+* Working on Body3d component
+* Add support for contact/collision events
+* Add support for raycastFirst()
+* 'collisionbox' format changed to single 'size' property
+* Fire 'livelink:updatetransform' event when entity transform is updated over a livelink
+
+-------
+v0.89.0
+-------
+* Implemented pc.scene.Model#generateWireframe.
+* Added pc.input.TouchDevice
+* Added shadow resolution attribute. Removed cast shadows attribute from point light component.
+
+-------
+v0.88.1
+-------
+* Added pc.fw.CameraComponent#screenToWorld.
+* [FIX] Skybox now renders correctly in Designer.
+
+-------
+v0.88.0
+-------
+* [FIX] Engine now honours toggling of cast shadows in Designer.
+* pc.gfx.ClearFlag -> pc.gfx.CLEARFLAG
+* Reworked directional light shadowmap camera frustum calculation.
+* Set WebGL to treat alpha more similarly to OpenGL.
+* Corrected aspect ratio of directional light shadow frustum. Added a fudge factor to Z limits of frustum to prevent clipping of shadow casters.
+* Initial support for inserting one-shot commands into draw call queue (to do things like clearing the depth buffer).
+
 -------
 v0.87.0
 -------

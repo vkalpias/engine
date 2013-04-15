@@ -10,7 +10,6 @@ pc.extend(pc.fw, function () {
      */
     var PointLightComponent = function (system, entity) {
         this.on("set_attenuationEnd", this.onSetAttenuationEnd, this);
-        this.on("set_castShadows", this.onSetCastShadows, this);
         this.on("set_color", this.onSetColor, this);
         this.on("set_enable", this.onSetEnable, this);
         this.on("set_intensity", this.onSetIntensity, this);
@@ -24,13 +23,8 @@ pc.extend(pc.fw, function () {
             light.setAttenuationEnd(newValue);
         },
 
-        onSetCastShadows: function (name, oldValue, newValue) {
-            var light = this.data.model.lights[0];
-            light.setCastShadows(newValue);
-        },
-
         onSetColor: function (name, oldValue, newValue) {
-            var rgb = parseInt(newValue);
+            var rgb = parseInt(newValue, 16);
             rgb = pc.math.intToBytes24(rgb);
             var color = [
                 rgb[0] / 255,

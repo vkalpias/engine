@@ -16,48 +16,48 @@ pc.extend(pc.scene, function () {
         this.cameras = [];
         this.lights = [];
         this.graph = null;
-	}
+    };
 
-	Model.prototype.getGraph = function () {
-	    return this.graph;
-	};
+    Model.prototype.getGraph = function () {
+        return this.graph;
+    };
 
-	Model.prototype.setGraph = function (graph) {
-	    this.graph = graph;
-	};
-	
-	Model.prototype.getCameras = function () {
-	    return this.cameras;
-	};
-	
-	Model.prototype.setCameras = function (cameras) {
-	    this.cameras = cameras;
-	};
-	
-	Model.prototype.getLights = function () {
-	    return this.lights;
-	};
-	
-	Model.prototype.setLights = function (lights) {
-	    this.lights = lights;
-	};
-	
-	Model.prototype.getTextures = function () {
-	    return this.textures;
-	};
-	
-	Model.prototype.setTextures = function (textures) {
-	    this.textures = textures;
-	};
-	
-	Model.prototype.getMaterials = function () {
-	    return this.materials;
-	};
-	
-	Model.prototype.setMaterials = function (materials) {
-	    this.materials = materials;
-	};
-	
+    Model.prototype.setGraph = function (graph) {
+        this.graph = graph;
+    };
+
+    Model.prototype.getCameras = function () {
+        return this.cameras;
+    };
+
+    Model.prototype.setCameras = function (cameras) {
+        this.cameras = cameras;
+    };
+
+    Model.prototype.getLights = function () {
+        return this.lights;
+    };
+
+    Model.prototype.setLights = function (lights) {
+        this.lights = lights;
+    };
+
+    Model.prototype.getTextures = function () {
+        return this.textures;
+    };
+
+    Model.prototype.setTextures = function (textures) {
+        this.textures = textures;
+    };
+
+    Model.prototype.getMaterials = function () {
+        return this.materials;
+    };
+
+    Model.prototype.setMaterials = function (materials) {
+        this.materials = materials;
+    };
+
     /**
      * @function
      * @name pc.scene.Model#clone
@@ -70,13 +70,14 @@ pc.extend(pc.scene, function () {
      * @author Will Eastcott
      */
 	Model.prototype.clone = function () {
+        var i;
         var clone = new pc.scene.Model();
 
         clone.textures = this.textures.slice(0);
         clone.materials = this.materials.slice(0);
         clone.skins = this.skins.slice(0);
 
-        for (var i = 0; i < clone.skins.length; i++) {
+        for (i = 0; i < clone.skins.length; i++) {
             clone.skinInstances.push(new pc.scene.SkinInstance(clone.skins[i]));
         }
 
@@ -101,11 +102,12 @@ pc.extend(pc.scene, function () {
             }
 
             return newNode;
-        }
+        };
+
         clone.graph = _duplicate(this.graph);
 
         // Clone the mesh instances
-        for (var i = 0; i < this.meshInstances.length; i++) {
+        for (i = 0; i < this.meshInstances.length; i++) {
             var meshInstance = this.meshInstances[i];
             var nodeIndex = srcNodes.indexOf(meshInstance.node);
             var cloneInstance = new pc.scene.MeshInstance(cloneNodes[nodeIndex], meshInstance.mesh, meshInstance.material);
@@ -148,6 +150,61 @@ pc.extend(pc.scene, function () {
         }
     };
 
+    Model.prototype.generateWireframe = function () {
+        var i, j, k;
+        var i1, i2;
+        var mesh, base, count, indexBuffer, wireBuffer;
+        var srcIndices, dstIndices;
+
+        // Build an array of unique meshes in this model
+        var meshes = [];
+        for (i = 0; i < this.meshInstances.length; i++) {
+            mesh = this.meshInstances[i].mesh;
+            if (meshes.indexOf(mesh) === -1) {
+                meshes.push(mesh);
+            }
+        }
+
+        var offsets = [[0, 1], [1, 2], [2, 0]];
+        for (i = 0; i < meshes.length; i++) {
+            mesh = meshes[i];
+            base = mesh.primitive[pc.scene.RENDERSTYLE_SOLID].base;
+            count = mesh.primitive[pc.scene.RENDERSTYLE_SOLID].count;
+            indexBuffer = mesh.indexBuffer[pc.scene.RENDERSTYLE_SOLID];
+
+            srcIndices = new Uint16Array(indexBuffer.lock());
+
+            var uniqueLineIndices = {};
+            var lines = [];
+            for (j = base; j < base + count; j+=3) {
+                for (k = 0; k < 3; k++) {
+                    i1 = srcIndices[j + offsets[k][0]];
+                    i2 = srcIndices[j + offsets[k][1]];
+                    var line = (i1 > i2) ? ((i2 << 16) | i1) : ((i1 << 16) | i2);
+                    if (uniqueLineIndices[line] === undefined) {
+                        uniqueLineIndices[line] = 0;
+                        lines.push(i1, i2);
+                    }
+                }
+            }
+
+            indexBuffer.unlock();
+
+            wireBuffer = new pc.gfx.IndexBuffer(pc.gfx.INDEXFORMAT_UINT16, lines.length);
+            dstIndices = new Uint16Array(wireBuffer.lock());
+            dstIndices.set(lines);
+            wireBuffer.unlock();
+
+            mesh.primitive[pc.scene.RENDERSTYLE_WIREFRAME] = {
+                type: pc.gfx.PRIMITIVE_LINES,
+                base: 0,
+                count: lines.length,
+                indexed: true
+            };
+            mesh.indexBuffer[pc.scene.RENDERSTYLE_WIREFRAME] = wireBuffer;
+        }
+    };
+    
 	return {
 		Model: Model
 	};

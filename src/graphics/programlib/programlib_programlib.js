@@ -76,7 +76,7 @@ pc.gfx.programlib = {
                     // Using a bit-shift of vec4(256.0*256.0*256.0, 256.0*256.0, 256.0, 1.0)
                     // and a bit-mask of    vec4(0.0, 1.0/256.0, 1.0/256.0, 1.0/256.0)
                     code += '    vec4 packedDepth = fract((gl_FragCoord.z * vec4(1.67772e+07, 65536.0, 256.0, 1.0)));\n';
-                    code += '    gl_FragData[0] = (packedDepth - (packedDepth.xxyz * vec4(0.0, 0.00390625, 0.00390625, 0.00390625)));\n'
+                    code += '    gl_FragData[0] = (packedDepth - (packedDepth.xxyz * vec4(0.0, 0.00390625, 0.00390625, 0.00390625)));\n';
                     /*
                     code += '    float linearDepth = 1.0 / (camera_far - camera_near);\n';
                     code += '    float r = length(vPositionE) * linearDepth;\n';
@@ -87,6 +87,62 @@ pc.gfx.programlib = {
                     code += '    const vec4 bias = vec4(1.0 / 255.0, 1.0 / 255.0, 1.0 / 255.0, 0.0);\n';
                     code += '    gl_FragData[0] =  packedDepth - (packedDepth.yzww * bias);\n';
                     */
+                }
+                break;
+
+            case 'fs_height_map_funcs':
+                code += 'vec3 perturb_normal( vec3 N, vec3 p, vec2 uv )\n';
+                code += '{\n';
+                code += '    vec3 dp1 = dFdx( p );\n';
+                code += '    vec3 dp2 = dFdy( p );\n';
+                code += '    vec2 duv1 = dFdx( uv );\n';
+                code += '    vec2 duv2 = dFdy( uv );\n\n';
+
+                code += '    vec3 dp2perp = cross( dp2, N );\n';
+                code += '    vec3 dp1perp = cross( N, dp1 );\n\n';
+
+                code += '    const float bumpScale = 0.125;\n';
+                code += '    float Hll = bumpScale * texture2D( texture_heightMap, uv ).x;\n';
+                code += '    float dBx = bumpScale * texture2D( texture_heightMap, uv + duv1 ).x - Hll;\n';
+                code += '    float dBy = bumpScale * texture2D( texture_heightMap, uv + duv2 ).x - Hll;\n\n';
+
+                code += '    float fDet = dot( dp1, dp2perp );\n';
+                code += '    vec3 vGrad = sign( fDet ) * ( dBx * dp2perp + dBy * dp1perp );\n';
+                code += '    return normalize( abs( fDet ) * N - vGrad );\n';
+                code += '}\n\n';
+                break;
+
+            case 'fs_normal_map_funcs':
+                if (!pc.gfx.Device.getCurrent().precalculatedTangents) {
+                    code += 'mat3 cotangent_frame( vec3 N, vec3 p, vec2 uv )\n';
+                    code += '{\n';
+                                 // get edge vectors of the pixel triangle
+                    code += '    vec3 dp1 = dFdx( p );\n';
+                    code += '    vec3 dp2 = dFdy( p );\n';
+                    code += '    vec2 duv1 = dFdx( uv );\n';
+                    code += '    vec2 duv2 = dFdy( uv );\n\n';
+
+                                 // solve the linear system
+                    code += '    vec3 dp2perp = cross( dp2, N );\n';
+                    code += '    vec3 dp1perp = cross( N, dp1 );\n';
+                    code += '    vec3 T = dp2perp * duv1.x + dp1perp * duv2.x;\n';
+                    code += '    vec3 B = dp2perp * duv1.y + dp1perp * duv2.y;\n\n';
+
+                                 // construct a scale-invariant frame 
+                    code += '    float invmax = inversesqrt( max( dot(T,T), dot(B,B) ) );\n';
+                    code += '    return mat3( T * invmax, B * invmax, N );\n';
+                    code += '}\n\n';
+
+                    code += 'vec3 perturb_normal( vec3 N, vec3 V, vec2 uv )\n';
+                    code += '{\n';
+                                 // assume N, the interpolated vertex normal and 
+                                 // V, the view vector (vertex to eye)
+                    code += '    vec3 map = texture2D( texture_normalMap, uv ).xyz;\n';
+                    code += '    map = map * 255./127. - 128./127.;\n';
+                    code += '    map.xy = map.xy * material_bumpMapFactor;\n';
+                    code += '    mat3 TBN = cotangent_frame( N, -V, uv );\n';
+                    code += '    return normalize( TBN * map );\n';
+                    code += '}\n\n';
                 }
                 break;
 
@@ -119,7 +175,7 @@ pc.gfx.programlib = {
                 code += '    normalW += (vertex_boneWeights[1] * matrix_pose[int(vertex_boneIndices[1])] * normal).xyz;\n';
                 code += '    normalW += (vertex_boneWeights[2] * matrix_pose[int(vertex_boneIndices[2])] * normal).xyz;\n';
                 code += '    normalW += (vertex_boneWeights[3] * matrix_pose[int(vertex_boneIndices[3])] * normal).xyz;\n';
-	            code += '    normalE = normalize((matrix_view * normalW).xyz);\n';
+                code += '    normalE = normalize((matrix_view * normalW).xyz);\n';
                 break;
 
             case 'vs_skin_tangent':
@@ -129,7 +185,7 @@ pc.gfx.programlib = {
                 code += '    tangentW += (vertex_boneWeights[1] * matrix_pose[int(vertex_boneIndices[1])] * tangent).xyz;\n';
                 code += '    tangentW += (vertex_boneWeights[2] * matrix_pose[int(vertex_boneIndices[2])] * tangent).xyz;\n';
                 code += '    tangentW += (vertex_boneWeights[3] * matrix_pose[int(vertex_boneIndices[3])] * tangent).xyz;\n';
-	            code += '    tangentE = normalize((matrix_view * tangentW).xyz);\n';
+                code += '    tangentE = normalize((matrix_view * tangentW).xyz);\n';
                 break;
 
             case 'vs_static_position_decl':

@@ -9,29 +9,26 @@ pc.extend(pc.audio, function () {
         * @param {pc.audio.AudioManager} manager The AudioManager instance
         * @param {pc.audio.Sound} sound The sound to playback
         * @param {Object} options
-        * @param {Number} [options.volume] The playback volume, between 0 and 1.
-        * @param {Boolean} [options.loop] Whether the sound should loop when it reaches the end or not.
+        * @param {Number} [options.volume=1] The playback volume, between 0 and 1.
+        * @param {Boolean} [options.loop=false] Whether the sound should loop when it reaches the end or not.
         */
         Channel = function (manager, sound, options) {
             options = options || {};
-            this.volume = options.volume || 1;
-            this.loop = options.loop || false;
+            this.volume = (typeof options.volume === 'undefined') ? 1 : options.volume;
+            this.loop = (typeof options.loop === 'undefined') ? false : options.loop;
             this.sound = sound;
                 
             this.paused = false;
             this.suspended = false;
 
-            this.startedAt = null;
-            this.pausedAt = null;
+            this.startTime = 0;
+            this.startOffset = 0;
 
             this.manager = manager;
-            this.manager.on('volumechange', this.onManagerVolumeChange, this)
-            this.manager.on('suspend', this.onManagerSuspend, this);
-            this.manager.on('resume', this.onManagerResume, this);
 
             this.source = null;
-
-            this.resetTimeout = null;
+            var context = manager.context;
+            this.gain = context.createGain();
         };
         
         Channel.prototype = {
@@ -41,52 +38,61 @@ pc.extend(pc.audio, function () {
             * @description Begin playback of sound
             */
             play: function () {
-                this.source = this.manager.context.createBufferSource();
-                this.source.buffer = this.sound.buffer;
-                this.source.connect(this.manager.context.destination);
-                this.startedAt = this.manager.context.currentTime;
+                if (this.source) {
+                    throw new Error('Call stop() before calling play()');
+                }
+
+                this._createSource();
 
                 // Initialize volume and loop
                 this.setVolume(this.volume);
                 this.setLoop(this.loop);
 
-                if (!this.paused) {
-                    // First call to play(), store the startedAt time to use when restarting if paused
-                    this.source.noteOn(0);
-                } else {
-                    this.startedAt -= this.pausedAt;
-                    var remainingTime = this.source.buffer.duration - this.pausedAt;
-                    this.source.noteGrainOn(0, this.pausedAt, remainingTime);
+                this.startTime = this.manager.context.currentTime;
+                this.source.start(0, this.startOffset % this.source.buffer.duration);
 
-                    var channel = this;
-                    this.resetTimeout = setTimeout(function () {
-                            // The loop property may have changed since the sound was restarted so check...
-                            if (channel.getLoop()) {
-                                channel.stop();
-                                channel.play();
-                            }
-                        }, remainingTime * 1000);
-
-                    this.paused = false;
-                }
+                this.manager.on('volumechange', this.onManagerVolumeChange, this);
+                this.manager.on('suspend', this.onManagerSuspend, this);
+                this.manager.on('resume', this.onManagerResume, this);
             },
 
             /**
             * @function
             * @name pc.audio.Channel#pause
-            * @description Pause playback of sound. Call play() to resume playback from the same position
+            * @description Pause playback of sound. Call unpause() to resume playback from the same position
             */
             pause: function () {
                 if (this.source) {
-                    if (this.resetTimeout !== null) {
-                      clearTimeout(this.resetTimeout);
-                    }
                     this.paused = true;
-                    this.pausedAt = (this.manager.context.currentTime - this.startedAt) % this.source.buffer.duration;
-                    this.source.noteOff(0);
+
+                    this.startOffset += this.manager.context.currentTime - this.startTime;
+                    this.source.stop(0);
+                    this.source = null;
                 }
             },
-            
+
+            /**
+            * @function
+            * @name pc.audio.Channel#unpause
+            * @description Resume playback of the sound. Playback resumes at the point that the audio was paused
+            */
+            unpause: function () {
+                if (this.source || !this.paused) {
+                    throw new Error('Call pause() before unpausing.');
+                }
+
+                this._createSource();
+
+                // Initialize volume and loop
+                this.setVolume(this.volume);
+                this.setLoop(this.loop);
+
+                this.startTime = this.manager.context.currentTime;
+                this.source.start(0, this.startOffset % this.source.buffer.duration);
+
+                this.paused = false;
+            },
+
             /**
             * @function 
             * @name pc.audio.Channel#stop
@@ -94,12 +100,13 @@ pc.extend(pc.audio, function () {
             */
             stop: function () {
                 if (this.source) {
-                    if (this.resetTimeout !== null) {
-                      clearTimeout(this.resetTimeout);
-                    }
-                    this.source.noteOff(0);
+                    this.source.stop(0);
                     this.source = null;
                 }
+
+                this.manager.off('volumechange', this.onManagerVolumeChange, this);
+                this.manager.off('suspend', this.onManagerSuspend, this);
+                this.manager.off('resume', this.onManagerResume, this);
             },
             
             /**
@@ -121,13 +128,33 @@ pc.extend(pc.audio, function () {
             */
             setVolume: function (volume) {
                 this.volume = volume;
-                if (this.source) {
-                    this.source.gain.value = volume * this.manager.getVolume();
+                if (this.gain) {
+                    this.gain.gain.value = volume * this.manager.getVolume();
                 }
             },
 
             isPlaying: function () {
-                return this.source.playbackState === this.source.PLAYING_STATE;
+                return (!this.paused && (this.source.playbackState === this.source.PLAYING_STATE));
+            },
+
+            getDuration: function () {
+                if (this.source) {
+                    return this.source.buffer.duration;
+                }
+                else {
+                    return 0;
+                }
+            },
+
+            _createSource: function () {
+                var context = this.manager.context;
+
+                this.source = context.createBufferSource();
+                this.source.buffer = this.sound.buffer;
+
+                // Connect up the nodes
+                this.source.connect(this.gain);
+                this.gain.connect(context.destination);
             }
 
         };
@@ -141,13 +168,10 @@ pc.extend(pc.audio, function () {
             this.suspended = false;
 
             this.manager = manager;
-            this.manager.on('volumechange', this.onManagerVolumeChange, this)
-            this.manager.on('suspend', this.onManagerSuspend, this);
-            this.manager.on('resume', this.onManagerResume, this);
             
             this.source = sound.audio.cloneNode(false);
             this.source.pause(); // not initially playing
-        }
+        };
         
         Channel.prototype = {
             play: function () {
@@ -157,12 +181,24 @@ pc.extend(pc.audio, function () {
                     this.setLoop(this.loop);
                     this.source.play();
                 }
+
+                this.manager.on('volumechange', this.onManagerVolumeChange, this);
+                this.manager.on('suspend', this.onManagerSuspend, this);
+                this.manager.on('resume', this.onManagerResume, this);
+
             },
 
             pause: function () {
                 if (this.source) {
                     this.paused = true;
                     this.source.pause();
+                }
+            },
+
+            unpause: function () {
+                if (this.source) {
+                    this.paused = false;
+                    this.source.play();                    
                 }
             },
             
@@ -172,6 +208,10 @@ pc.extend(pc.audio, function () {
                     // Reset to beginning of sample.
                     this.source.currentTime = 0;
                 }
+
+                this.manager.off('volumechange', this.onManagerVolumeChange, this);
+                this.manager.off('suspend', this.onManagerSuspend, this);
+                this.manager.off('resume', this.onManagerResume, this);
             },
             
             setVolume: function (volume) {
@@ -188,8 +228,20 @@ pc.extend(pc.audio, function () {
                 }
             },
 
+            getDuration: function () {
+                if (this.source) {
+                    var d = this.source.duration;
+                    if (d === d) {
+                        // Not NaN
+                        return d;
+                    }
+                }
+
+                return 0;
+            },
+
             isPlaying: function () {
-                return this.source.isPlaying();
+                return !this.source.paused;
             }
         };
     } else {
@@ -250,7 +302,7 @@ pc.extend(pc.audio, function () {
         onManagerResume: function () {
             if (this.suspended) {
                 this.suspended = false;
-                this.play();
+                this.unpause();
             }
         }
     });

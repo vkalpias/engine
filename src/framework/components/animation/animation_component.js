@@ -54,7 +54,6 @@ pc.extend(pc.fw, function () {
                     data.fromSkel.setAnimation(data.animations[data.prevAnim]);
                     data.fromSkel.addTime(data.skeleton.getCurrentTime());
                     data.toSkel.setAnimation(data.animations[data.currAnim]);
-                    data.toSkel.addTime(0);
                 } else {
                     data.skeleton.setAnimation(data.animations[data.currAnim]);
                 }
@@ -98,43 +97,40 @@ pc.extend(pc.fw, function () {
                 return;
             }
             
-            var requests = guids.map(function (guid) {
-                return new pc.resources.AssetRequest(guid);
-            });
             var options = {
                 batch: this.entity.getRequestBatch()
             };
 
-            this.system.context.loader.request(requests, function (assetResources) {
-                var requests = guids.map(function (guid) {
-                    var asset = assetResources[guid];
-                    return new pc.resources.AnimationRequest(asset.getFileUrl());
-                });
-                var assetNames = guids.map(function (guid) {
-                    return assetResources[guid].name;
-                });
-                this.system.context.loader.request(requests, function (animResources) {
-                    var animations = {};
-                    for (var i = 0; i < requests.length; i++) {
-                        animations[assetNames[i]] = animResources[requests[i].identifier];
-                    }
-                    this.animations = animations;
-                    //this.set(entity, 'animations', animations);
-                }.bind(this), function (errors) {
-                    
-                }, function (progress) {
-                    
-                }, options);
+            var assets = guids.map(function (guid) {
+                return this.system.context.assets.getAsset(guid);
+            }, this);
+
+            var names = [];
+            var requests = assets.map(function (asset) {
+                if (!asset) {
+                    logERROR(pc.string.format('Trying to load animation component before assets {0} are loaded', guids));
+                } else {
+                    names.push(asset.name);
+                    return new pc.resources.AnimationRequest(asset.getFileUrl());    
+                }
+            });
+
+            this.system.context.loader.request(requests, function (animResources) {
+                var animations = {};
+                for (var i = 0; i < requests.length; i++) {
+                    animations[names[i]] = animResources[requests[i].identifier];
+                }
+                this.animations = animations;
             }.bind(this), function (errors) {
                 
             }, function (progress) {
                 
-            }, options);        
+            }, options);
+        
         },
 
         onSetAnimations: function (name, oldValue, newValue) {
             var data = this.data;
-            var name;
 
             // If we have animations _and_ a model, we can create the skeletons
             var modelComponent = this.entity.model;
@@ -145,10 +141,10 @@ pc.extend(pc.fw, function () {
                 }
             }
 
-            for (name in data.animations) {
+            for (var animName in data.animations) {
                 // Set the first loaded animation as the current
                 if (data.activate) {
-                    this.play(name, 0);
+                    this.play(animName, 0);
                 }
                 break;
             }

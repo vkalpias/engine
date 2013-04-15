@@ -1,10 +1,9 @@
 pc.extend(pc.fw, function () {
     /**
-     * @private
      * @name pc.fw.CollisionSphereComponentSystem
      * @constructor Create a new CollisionSphereComponentSystem
-     * @class 
-     * @param {Object} context
+     * @class Manages creation of CollisionSphereComponents
+     * @param {pc.fw.ApplicationContext} context The ApplicationContext of the running application
      * @extends pc.fw.ComponentSystem
      */
     var CollisionSphereComponentSystem = function CollisionSphereComponentSystem (context) {
@@ -21,7 +20,7 @@ pc.extend(pc.fw, function () {
             type: "number",
             options: {
                 min: 0,
-                step: 0.1,
+                step: 0.1
             },
             defaultValue: 0.5
         }, {
@@ -40,12 +39,13 @@ pc.extend(pc.fw, function () {
         format.addElement(new pc.gfx.VertexElement("vertex_position", 3, pc.gfx.VertexElementType.FLOAT32));
         format.end();
 
-        var vertexBuffer = new pc.gfx.VertexBuffer(format, 41, pc.gfx.VertexBufferUsage.STATIC);
+        var vertexBuffer = new pc.gfx.VertexBuffer(format, 41);
         var positions = new Float32Array(vertexBuffer.lock());
 
+        var i;
         var r = 0.5;
         var numVerts = vertexBuffer.getNumVertices();
-        for (var i = 0; i < numVerts-1; i++) {
+        for (i = 0; i < numVerts-1; i++) {
             var theta = 2 * Math.PI * (i / (numVerts-2));
             var x = r * Math.cos(theta);
             var z = r * Math.sin(theta);
@@ -55,9 +55,9 @@ pc.extend(pc.fw, function () {
         }
         vertexBuffer.unlock();
 
-        var indexBuffer = new pc.gfx.IndexBuffer(pc.gfx.IndexFormat.UINT8, 80);
+        var indexBuffer = new pc.gfx.IndexBuffer(pc.gfx.INDEXFORMAT_UINT8, 80);
         var inds = new Uint8Array(indexBuffer.lock());
-        for (var i = 0; i < 40; i++) {
+        for (i = 0; i < 40; i++) {
             inds[i * 2 + 0] = i;
             inds[i * 2 + 1] = i + 1;
         }
@@ -66,7 +66,7 @@ pc.extend(pc.fw, function () {
         this.mesh = new pc.scene.Mesh();
         this.mesh.vertexBuffer = vertexBuffer;
         this.mesh.indexBuffer[0] = indexBuffer;
-        this.mesh.primitive[0].type = pc.gfx.PrimType.LINES;
+        this.mesh.primitive[0].type = pc.gfx.PRIMITIVE_LINES;
         this.mesh.primitive[0].base = 0;
         this.mesh.primitive[0].count = indexBuffer.getNumIndices();
         this.mesh.primitive[0].indexed = true;
@@ -98,14 +98,14 @@ pc.extend(pc.fw, function () {
 
             CollisionSphereComponentSystem._super.initializeComponentData.call(this, component, data, properties);
 
-            if (component.entity.body3d) {
-                component.entity.body3d.createBody();
+            if (component.entity.rigidbody) {
+                component.entity.rigidbody.createBody();
             }
         },
 
         onRemove: function (entity, data) {
-            if (entity.body3d && entity.body3d.body) {
-                this.context.systems.body3d.removeBody(entity.body3d.body);
+            if (entity.rigidbody && entity.rigidbody.body) {
+                this.context.systems.rigidbody.removeBody(entity.rigidbody.body);
             }
 
             if (this.context.scene.containsModel(data.model)) {
@@ -115,7 +115,7 @@ pc.extend(pc.fw, function () {
         },
 
         /**
-        * @private
+        * @function
         * @name pc.fw.CollisionSphereComponentSystem#setDebugRender
         * @description Display collision shape outlines
         * @param {Boolean} value Enable or disable
@@ -136,7 +136,7 @@ pc.extend(pc.fw, function () {
 
         updateDebugShapes: function () {
             var components = this.store;
-            for (id in components) {
+            for (var id in components) {
                 var entity = components[id].entity;
                 var data = components[id].data;
 

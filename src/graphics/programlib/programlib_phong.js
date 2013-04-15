@@ -34,11 +34,17 @@ pc.gfx.programlib.phong = {
             key += "_spfm"; // Specular factor map
         }
 
+        if (options.glossMapTransform) {
+            key += "_glox"; // Gloss map with texture transform
+        } else if (options.glossMap) {
+            key += "_glom"; // Gloss map
+        }
+
         if (options.emissiveMapTransform) {
             key += "_emix"; // Emissive map with texture transform
         } else if (options.emissiveMap) {
             key += "_emim"; // Emissive map
-        } else if (options.emissiveColor) {
+        } else {
             key += "_emic"; // Emissive color
         }
 
@@ -54,10 +60,10 @@ pc.gfx.programlib.phong = {
             key += "_norm"; // Normal map
         }
 
-        if (options.parallaxMapTransform) {
-            key += "_parx"; // Parallax map with texture transform
-        } else if (options.parallaxMap) {
-            key += "_parm"; // Parallax map
+        if (options.heightMapTransform) {
+            key += "_hgtx"; // Height map with texture transform
+        } else if (options.heightMap) {
+            key += "_hgtm"; // Height map
         }
 
         if (options.sphereMap)           key += "_sphr";
@@ -83,21 +89,23 @@ pc.gfx.programlib.phong = {
            ((options.diffuseMap && !options.diffuseMapTransform) ||
             (options.specularMap && !options.specularMapTransform) ||
             (options.specularFactorMap && !options.specularFactorMapTransform) ||
+            (options.glossMap && !options.glossMapTransform) ||
             (options.emissiveMap && !options.emissiveMapTransform) ||
             (options.opacityMap && !options.opacityMapTransform) ||
             (options.normalMap && !options.normalMapTransform) ||
-            (options.parallaxMap && !options.parallaxMapTransform));
-        
+            (options.heightMap && !options.heightMapTransform));
+        var useTangents = pc.gfx.Device.getCurrent().precalculatedTangents;
+
         // VERTEX SHADER INPUTS: ATTRIBUTES
         code += "attribute vec3 vertex_position;\n";
         if (lighting || options.cubeMap || options.sphereMap) {
             code += "attribute vec3 vertex_normal;\n";
-            if (options.normalMap || options.parallaxMap) {
+            if (options.normalMap && useTangents) {
                 code += "attribute vec4 vertex_tangent;\n";
             }
         }
-        if (options.diffuseMap || options.specularMap || options.specularFactorMap ||
-            options.emissiveMap || options.normalMap || options.parallaxMap || options.opacityMap) {
+        if (options.diffuseMap || options.specularMap || options.specularFactorMap || options.glossMap ||
+            options.emissiveMap || options.normalMap || options.heightMap || options.opacityMap) {
             code += "attribute vec2 vertex_texCoord0;\n";
         }
         if (options.lightMap) {
@@ -113,7 +121,6 @@ pc.gfx.programlib.phong = {
         code += "\n";
 
         // VERTEX SHADER INPUTS: UNIFORMS
-        code += "uniform mat4 matrix_view;\n";
         code += "uniform mat4 matrix_viewProjection;\n";
         code += "uniform mat4 matrix_model;\n";
         if (options.skin) {
@@ -136,7 +143,7 @@ pc.gfx.programlib.phong = {
                 code += "uniform mat4 light" + i + "_shadowMatrix;\n";
             }
         }
-        if ((options.cubeMap) || (options.sphereMap)) {
+        if (lighting) {
             code += "uniform vec3 view_position;\n";
         }
         if (options.diffuseMap && options.diffuseMapTransform) {
@@ -144,8 +151,9 @@ pc.gfx.programlib.phong = {
         }
         if (options.normalMap && options.normalMapTransform) {
             code += "uniform mat4 texture_normalMapTransform;\n";
-        } else if (options.parallaxMap && options.parallaxMapTransform) {
-            code += "uniform mat4 texture_parallaxMapTransform;\n";
+        }
+        if (options.heightMap && options.heightMapTransform) {
+            code += "uniform mat4 texture_heightMapTransform;\n";
         }
         if (options.opacityMap && options.opacityMapTransform) {
             code += "uniform mat4 texture_opacityMapTransform;\n";
@@ -156,6 +164,9 @@ pc.gfx.programlib.phong = {
         if (options.specularFactorMap && options.specularFactorMapTransform) {
             code += "uniform mat4 texture_specularFactorMapTransform;\n";
         }
+        if (options.glossMap && options.glossMapTransform) {
+            code += "uniform mat4 texture_glossMapTransform;\n";
+        }
         if (options.emissiveMap && options.emissiveMapTransform) {
             code += "uniform mat4 texture_emissiveMapTransform;\n";
         }
@@ -163,20 +174,21 @@ pc.gfx.programlib.phong = {
 
         // VERTEX SHADER OUTPUTS
         if (lighting) {
-            code += "varying vec3 vViewDir;\n";
+            if (!(options.normalMap && useTangents)) {
+                code += "varying vec3 vNormalW;\n";
+            }
+            code += "varying vec3 vViewDirW;\n";
+
             for (i = 0; i < totalLights; i++) {
-                code += "varying vec3 vLight" + i + "Dir;\n";
+                code += "varying vec3 vLight" + i + "DirW;\n";
                 if (i >= totalDirs + totalPnts) {
-                    code += "varying vec3 vLight" + i + "SpotDir;\n";
+                    code += "varying vec3 vLight" + i + "SpotDirW;\n";
                 }
                 if ((i >= options.numDirs && i < totalDirs) || 
                     (i >= totalDirs + options.numPnts && i < totalDirs + totalPnts) || 
                     (i >= totalDirs + totalPnts + options.numSpts && i < totalLights)) {
                     code += "varying vec4 vLight" + i + "ShadowCoord;\n";
                 }
-            }
-            if (!(options.normalMap || options.parallaxMap)) {
-                code += "varying vec3 vNormalE;\n";
             }
         }
 
@@ -193,7 +205,10 @@ pc.gfx.programlib.phong = {
             if (options.specularFactorMap && options.specularFactorMapTransform) {
                 code += "varying vec2 vUvSpecularFactorMap;\n";
             }
-            if ((options.normalMap && options.normalMapTransform) || (options.parallaxMap && options.parallaxMapTransform)) {
+            if (options.glossMap && options.glossMapTransform) {
+                code += "varying vec2 vUvGlossMap;\n";
+            }
+            if ((options.normalMap && options.normalMapTransform) || (options.heightMap && options.heightMapTransform)) {
                 code += "varying vec2 vUvBumpMap;\n";
             }
         }
@@ -207,10 +222,6 @@ pc.gfx.programlib.phong = {
             code += "varying vec2 vUvLightMap;\n";
         }
 
-        if (options.cubeMap || options.sphereMap) {
-            code += "varying vec3 vNormalW;\n";
-            code += "varying vec3 vVertToEyeW;\n";
-        }
         if (options.vertexColors) {
             code += "varying vec4 vVertexColor;\n";
         }
@@ -223,7 +234,7 @@ pc.gfx.programlib.phong = {
         code += "    vec4 position = vec4(vertex_position, 1.0);\n";
         if (lighting || options.cubeMap || options.sphereMap) {
             code += "    vec4 normal   = vec4(vertex_normal, 0.0);\n";
-            if (options.normalMap || options.parallaxMap) {
+            if (options.normalMap && useTangents) {
                 code += "    vec4 tangent  = vec4(vertex_tangent.xyz, 0.0);\n";
             }
         }
@@ -245,7 +256,7 @@ pc.gfx.programlib.phong = {
                 code += "    normalW += vertex_boneWeights[2] * matrix_pose[int(vertex_boneIndices[2])] * normal;\n";
                 code += "    normalW += vertex_boneWeights[3] * matrix_pose[int(vertex_boneIndices[3])] * normal;\n\n";
 
-                if (options.normalMap || options.parallaxMap) {
+                if (options.normalMap && useTangents) {
                     code += "    vec4 tangentW;\n";
                     code += "    tangentW  = vertex_boneWeights[0] * matrix_pose[int(vertex_boneIndices[0])] * tangent;\n";
                     code += "    tangentW += vertex_boneWeights[1] * matrix_pose[int(vertex_boneIndices[1])] * tangent;\n";
@@ -257,9 +268,17 @@ pc.gfx.programlib.phong = {
             code += "    vec4 positionW = matrix_model * position;\n";
             if (lighting || options.cubeMap || options.sphereMap) {
                 code += "    vec4 normalW   = matrix_model * normal;\n";
-                if (options.normalMap || options.parallaxMap) {
-                    code += "    vec4 tangentW  = matrix_model * tangent;\n";
+                if (options.normalMap && useTangents) {
+                    code += "    vec4 tangentW = matrix_model * tangent;\n";
                 }
+            }
+            code += "\n";
+        }
+
+        if (lighting || options.cubeMap || options.sphereMap) {
+            code += "    normalW.xyz = normalize(normalW.xyz);\n";
+            if (options.normalMap && useTangents) {
+                code += "    tangentW.xyz  = normalize(tangentW.xyz);\n";
             }
             code += "\n";
         }
@@ -269,53 +288,51 @@ pc.gfx.programlib.phong = {
 
         // Transform vectors required for lighting to eye space
         if (lighting) {
-            // Calculate position, normal and light direction in eye space
-            code += "    vec3 positionE = vec3(matrix_view * positionW);\n";
-            code += "    vec3 normalE   = normalize((matrix_view * normalW).xyz);\n";
-            for (i = 0; i < totalDirs; i++) {
-                code += "    vec3 light" + i + "DirE = vec3(matrix_view * vec4(-light" + i + "_direction, 0.0));\n";
-            }
-            for (i = totalDirs; i < totalLights; i++) {
-                code += "    vec3 light" + i + "DirE = vec3(matrix_view * vec4(light" + i + "_position - positionW.xyz, 0.0));\n";
-                if (i >= totalDirs + totalPnts) {
-                    code += "    vec3 light" + i + "SpotDirE = vec3(matrix_view * vec4(light" + i + "_spotDirection, 0.0));\n";
-                }
-            }
-
-            var tangentSpaceLighting = (options.normalMap || options.parallaxMap);
-            if (tangentSpaceLighting) {
+            if (options.normalMap && useTangents) {
                 // Calculate the tangent space basis vectors
-                code += "    vec3 tangentE  = normalize((matrix_view * tangentW).xyz);\n";
-                code += "    vec3 binormalE = cross(normalE, tangentE) * vertex_tangent.w;\n";
-                code += "    mat3 tbnMatrix = mat3(tangentE.x, binormalE.x, normalE.x,\n";
-                code += "                          tangentE.y, binormalE.y, normalE.y,\n";
-                code += "                          tangentE.z, binormalE.z, normalE.z);\n";
+                code += "    vec3 binormalW = cross(normalW.xyz, tangentW.xyz) * vertex_tangent.w;\n";
+                code += "    mat3 tbnMatrix = mat3(tangentW.x, binormalW.x, normalW.x,\n";
+                code += "                          tangentW.y, binormalW.y, normalW.y,\n";
+                code += "                          tangentW.z, binormalW.z, normalW.z);\n";
+                code += "    vViewDirW = tbnMatrix * (view_position - positionW.xyz);\n";
+
+                for (i = 0; i < totalLights; i++) {
+                    if (i < totalDirs) {
+                        code += "    vLight" + i + "DirW = -(tbnMatrix * light" + i + "_direction);\n";
+                    }
+                    if (i >= totalDirs) {
+                        code += "    vLight" + i + "DirW = tbnMatrix * (light" + i + "_position - positionW.xyz);\n";
+                    }
+                    if (i >= totalDirs + totalPnts) {
+                        code += "    vLight" + i + "SpotDirW = tbnMatrix * light" + i + "_spotDirection;\n";
+                    }
+                }
             } else {
-                // Just pass on the vertex normal to the fragment shader
-                code += "    vNormalE = normalE;\n";
+                code += "    vNormalW = normalW.xyz;\n";
+                code += "    vViewDirW = view_position - positionW.xyz;\n";
+
+                for (i = 0; i < totalLights; i++) {
+                    if (i < totalDirs) {
+                        code += "    vLight" + i + "DirW = -light" + i + "_direction;\n";
+                    }
+                    if (i >= totalDirs) {
+                        code += "    vLight" + i + "DirW = light" + i + "_position - positionW.xyz;\n";
+                    }
+                    if (i >= totalDirs + totalPnts) {
+                        code += "    vLight" + i + "SpotDirW = light" + i + "_spotDirection;\n";
+                    }
+                }
             }
 
-            // Transform vertex-view and vertex-light vectors to eye space
-            var tbnMult = tangentSpaceLighting ? "tbnMatrix * " : "";
-            code += "    vViewDir = " + tbnMult + "-positionE;\n";
             for (i = 0; i < totalLights; i++) {
-                code += "    vLight" + i + "Dir = " + tbnMult + "light" + i + "DirE;\n";
-                if (i >= totalDirs + totalPnts) {
-                    code += "    vLight" + i + "SpotDir = " + tbnMult + "light" + i + "SpotDirE;\n";
-                }
                 if ((i >= options.numDirs && i < totalDirs) || 
                     (i >= totalDirs + options.numPnts && i < totalDirs + totalPnts) || 
                     (i >= totalDirs + totalPnts + options.numSpts && i < totalLights)) {
                     code += "    vLight" + i + "ShadowCoord = light" + i + "_shadowMatrix * positionW;\n";
                 }
             }
-            code += "\n";
-        }
 
-        // Calculate world space vector from eye point to vertex for reflection mapping
-        if (options.cubeMap || options.sphereMap) {
-            code += "    vNormalW    = normalW.xyz;\n";
-            code += "    vVertToEyeW = view_position - positionW.xyz;\n";
+            code += "\n";
         }
 
         if (mapWithoutTransform) {
@@ -331,10 +348,13 @@ pc.gfx.programlib.phong = {
             if (options.specularFactorMap && options.specularFactorMapTransform) {
                 code += "    vUvSpecularFactorMap = (texture_specularFactorMapTransform * vec4(vertex_texCoord0, 0, 1)).st;\n";
             }
+            if (options.glossMap & options.glossMapTransform) {
+                code += "    vUvGlossMap = (texture_glossMapTransform * vec4(vertex_texCoord0, 0, 1)).st;\n";
+            }
             if (options.normalMap && options.normalMapTransform) {
                 code += "    vUvBumpMap = (texture_normalMapTransform * vec4(vertex_texCoord0, 0, 1)).st;\n";
-            } else if (options.parallaxMap && options.parallaxMapTransform) {
-                code += "    vUvBumpMap = (texture_parallaxMapTransform * vec4(vertex_texCoord0, 0, 1)).st;\n";
+            } else if (options.heightMap && options.heightMapTransform) {
+                code += "    vUvBumpMap = (texture_heightMapTransform * vec4(vertex_texCoord0, 0, 1)).st;\n";
             }
         }
         if (options.opacityMap && options.opacityMapTransform) {
@@ -366,30 +386,37 @@ pc.gfx.programlib.phong = {
            ((options.diffuseMap && !options.diffuseMapTransform) ||
             (options.specularMap && !options.specularMapTransform) ||
             (options.specularFactorMap && !options.specularFactorMapTransform) ||
+            (options.glossMap && !options.glossMapTransform) ||
             (options.emissiveMap && !options.emissiveMapTransform) ||
             (options.opacityMap && !options.opacityMapTransform) ||
             (options.normalMap && !options.normalMapTransform) ||
-            (options.parallaxMap && !options.parallaxMapTransform));
+            (options.heightMap && !options.heightMapTransform));
+        var useTangents = pc.gfx.Device.getCurrent().precalculatedTangents;
 
         var getSnippet = pc.gfx.programlib.getSnippet;
         var code = getSnippet('fs_precision');
 
+        if ((options.normalMap && !useTangents) || options.heightMap) {
+            code += "#extension GL_OES_standard_derivatives : enable\n\n";
+        }
+
         // FRAGMENT SHADER INPUTS: VARYINGS
         if (lighting) {
-            code += "varying vec3 vViewDir;\n";
+            if (!(options.normalMap && useTangents)) {
+                code += "varying vec3 vNormalW;\n";
+            }
+            code += "varying vec3 vViewDirW;\n";
+
             for (i = 0; i < totalLights; i++) {
-                code += "varying vec3 vLight" + i + "Dir;\n";
+                code += "varying vec3 vLight" + i + "DirW;\n";
                 if (i >= totalDirs + totalPnts) {
-                    code += "varying vec3 vLight" + i + "SpotDir;\n";
+                    code += "varying vec3 vLight" + i + "SpotDirW;\n";
                 }
                 if ((i >= options.numDirs && i < totalDirs) || 
                     (i >= totalDirs + options.numPnts && i < totalDirs + totalPnts) || 
                     (i >= totalDirs + totalPnts + options.numSpts && i < totalLights)) {
                     code += "varying vec4 vLight" + i + "ShadowCoord;\n";
                 }
-            }
-            if (!(options.normalMap || options.parallaxMap)) {
-                code += "varying vec3 vNormalE;\n";
             }
         }
 
@@ -406,7 +433,10 @@ pc.gfx.programlib.phong = {
             if (options.specularFactorMap && options.specularFactorMapTransform) {
                 code += "varying vec2 vUvSpecularFactorMap;\n";
             }
-            if ((options.normalMap && options.normalMapTransform) || (options.parallaxMap && options.parallaxMapTransform)) {
+            if (options.glossMap && options.glossMapTransform) {
+                code += "varying vec2 vUvGlossMap;\n";
+            }
+            if ((options.normalMap && options.normalMapTransform) || (options.heightMap && options.heightMapTransform)) {
                 code += "varying vec2 vUvBumpMap;\n";
             }
         }
@@ -420,21 +450,17 @@ pc.gfx.programlib.phong = {
             code += "varying vec2 vUvLightMap;\n";
         }
 
-        if (options.cubeMap || options.sphereMap) {
-            code += "varying vec3 vNormalW;\n";
-            code += "varying vec3 vVertToEyeW;\n";
-        }
         if (options.vertexColors) {
             code += "varying vec4 vVertexColor;\n";
         }
         code += "\n";
 
         // FRAGMENT SHADER INPUTS: UNIFORMS
-        if (!options.diffuseMap) {
+        if (options.diffuseMap) {
+            code += "uniform sampler2D texture_diffuseMap;\n";
+        } else {
             code += "uniform vec3 material_ambient;\n";
-            if (lighting) {
-                code += "uniform vec3 material_diffuse;\n";
-            }
+            code += "uniform vec3 material_diffuse;\n";
         }
         if (lighting) {
             if (options.specularMap) {
@@ -445,15 +471,16 @@ pc.gfx.programlib.phong = {
             if (options.specularFactorMap) {
                 code += "uniform sampler2D texture_specularFactorMap;\n";
             }
-            code += "uniform float material_shininess;\n";
+            if (options.glossMap) {
+                code += "uniform sampler2D texture_glossMap;\n";
+            } else {
+                code += "uniform float material_shininess;\n";
+            }
         }
         if (options.emissiveMap) {
             code += "uniform sampler2D texture_emissiveMap;\n";
-        } else if (options.emissiveColor) {
+        } else {
             code += "uniform vec3 material_emissive;\n";
-        }
-        if (options.diffuseMap) {
-            code += "uniform sampler2D texture_diffuseMap;\n";
         }
         if (options.lightMap) {
             code += "uniform sampler2D texture_lightMap;\n";
@@ -461,15 +488,17 @@ pc.gfx.programlib.phong = {
         if (lighting) {
             if (options.normalMap) {
                 code += "uniform sampler2D texture_normalMap;\n";
-            } else if (options.parallaxMap) {
-                code += "uniform sampler2D texture_parallaxMap;\n";
+                code += "uniform float material_bumpMapFactor;\n";
+            }
+            if (options.heightMap) {
+                code += "uniform sampler2D texture_heightMap;\n";
             }
             if (options.cubeMap || options.sphereMap) {
                 code += "uniform float material_reflectionFactor;\n";
                 if (options.sphereMap) {
+                    code += "uniform mat4 matrix_view;\n";
                     code += "uniform sampler2D texture_sphereMap;\n";
                 } else { // Cube mapping
-                    code += "uniform mat4 matrix_view;\n";
                     code += "uniform samplerCube texture_cubeMap;\n";
                 }
             }
@@ -503,10 +532,16 @@ pc.gfx.programlib.phong = {
             code += getSnippet('fs_alpha_test_decl');
         }
 
+        if (options.normalMap) {
+            code += getSnippet('fs_normal_map_funcs');
+        } else if (options.heightMap) {
+            code += getSnippet('fs_height_map_funcs');
+        }
+
         code += "\n"; // End of uniform declarations
 
         if (numShadowLights > 0) {
-            code += "float calculateShadowFactor(const in vec4 sc, const in vec3 sp, const in sampler2D sm)\n";
+            code += "float calculateShadowFactor(const in vec4 sc, const in vec3 sp, const in sampler2D shadowMap)\n";
             code += "{\n";
             code += "    float depth;\n";
             code += "    float depthBias = sp.z;\n";
@@ -517,76 +552,104 @@ pc.gfx.programlib.phong = {
             code += "    if (contained)\n";
             code += "    {\n";
             if (false) {
-                code += "        depth = upackRgbaDepthToFloat(texture2D(sm, shadowCoord.xy));\n";
+                code += "        depth = upackRgbaDepthToFloat(texture2D(shadowMap, shadowCoord.xy));\n";
                 code += "        return (depth < shadowCoord.z) ? 0.3 : 1.0;\n";
             } else {
                 code += "        float shadowAccum = 0.0;\n";
+
+/*
                 code += "        const float shadowContrib = 1.0 / 9.0;\n";
                 code += "        float xoffset = 1.0 / sp[0];\n"; // 1/shadow map width
                 code += "        float yoffset = 1.0 / sp[1];\n"; // 1/shadow map height
-                code += "        float xWest = -1.25 * xoffset;\n";
-                code += "        float ySouth = -1.25 * yoffset;\n";
-                code += "        float xEast = 1.25 * xoffset;\n";
-                code += "        float yNorth = 1.25 * yoffset;\n";
+                code += "        float dx0 = -1.25 * xoffset;\n";
+                code += "        float dy0 = -1.25 * yoffset;\n";
+                code += "        float dx1 = 1.25 * xoffset;\n";
+                code += "        float dy1 = 1.25 * yoffset;\n";
 
-                if (pc.gfx.Device.getCurrent().extDepthTexture) {
-                    code += "        depth = texture2D(sm, shadowCoord.xy + vec2(xWest, ySouth)).r;\n";
-                    code += "        shadowAccum += (depth < shadowCoord.z) ? 0.0 : shadowContrib;\n";
+                // Vector equivalent to vec4(1.0/(256.0*256.0*256.0), 1.0/(256.0*256.0), 1.0/256.0, 1.0)";
+                code += "        const vec4 bit_shift = vec4(5.96046e-08, 1.52588e-05, 0.00390625, 1.0);\n";
 
-                    code += "        depth = texture2D(sm, shadowCoord.xy + vec2(0.0, ySouth)).r;\n";
-                    code += "        shadowAccum += (depth < shadowCoord.z) ? 0.0 : shadowContrib;\n";
+                code += "        depth = dot(texture2D(shadowMap, shadowCoord.xy + vec2(dx0, dy0)), bit_shift);\n";
+                code += "        shadowAccum += (depth < shadowCoord.z) ? 0.0 : shadowContrib;\n";
 
-                    code += "        depth = texture2D(sm, shadowCoord.xy + vec2(xEast, ySouth)).r;\n";
-                    code += "        shadowAccum += (depth < shadowCoord.z) ? 0.0 : shadowContrib;\n";
+                code += "        depth = dot(texture2D(shadowMap, shadowCoord.xy + vec2(0.0, dy0)), bit_shift);\n";
+                code += "        shadowAccum += (depth < shadowCoord.z) ? 0.0 : shadowContrib;\n";
 
-                    code += "        depth = texture2D(sm, shadowCoord.xy + vec2(xWest, 0.0)).r;\n";
-                    code += "        shadowAccum += (depth < shadowCoord.z) ? 0.0 : shadowContrib;\n";
+                code += "        depth = dot(texture2D(shadowMap, shadowCoord.xy + vec2(dx1, dy0)), bit_shift);\n";
+                code += "        shadowAccum += (depth < shadowCoord.z) ? 0.0 : shadowContrib;\n";
 
-                    code += "        depth = texture2D(sm, shadowCoord.xy)).r;\n";
-                    code += "        shadowAccum += (depth < shadowCoord.z) ? 0.0 : shadowContrib;\n";
+                code += "        depth = dot(texture2D(shadowMap, shadowCoord.xy + vec2(dx0, 0.0)), bit_shift);\n";
+                code += "        shadowAccum += (depth < shadowCoord.z) ? 0.0 : shadowContrib;\n";
 
-                    code += "        depth = texture2D(sm, shadowCoord.xy + vec2(xEast, 0.0)).r;\n";
-                    code += "        shadowAccum += (depth < shadowCoord.z) ? 0.0 : shadowContrib;\n";
+                code += "        depth = dot(texture2D(shadowMap, shadowCoord.xy), bit_shift);\n";
+                code += "        shadowAccum += (depth < shadowCoord.z) ? 0.0 : shadowContrib;\n";
 
-                    code += "        depth = texture2D(sm, shadowCoord.xy + vec2(xWest, yNorth)).r;\n";
-                    code += "        shadowAccum += (depth < shadowCoord.z) ? 0.0 : shadowContrib;\n";
+                code += "        depth = dot(texture2D(shadowMap, shadowCoord.xy + vec2(dx1, 0.0)), bit_shift);\n";
+                code += "        shadowAccum += (depth < shadowCoord.z) ? 0.0 : shadowContrib;\n";
 
-                    code += "        depth = texture2D(sm, shadowCoord.xy + vec2(0.0, yNorth)).r;\n";
-                    code += "        shadowAccum += (depth < shadowCoord.z) ? 0.0 : shadowContrib;\n";
+                code += "        depth = dot(texture2D(shadowMap, shadowCoord.xy + vec2(dx0, dy1)), bit_shift);\n";
+                code += "        shadowAccum += (depth < shadowCoord.z) ? 0.0 : shadowContrib;\n";
 
-                    code += "        depth = texture2D(sm, shadowCoord.xy + vec2(xEast, yNorth)).r;\n";
-                    code += "        shadowAccum += (depth < shadowCoord.z) ? 0.0 : shadowContrib;\n";
-                } else {
-                    // Vector equivalent to vec4(1.0/(256.0*256.0*256.0), 1.0/(256.0*256.0), 1.0/256.0, 1.0)";
-                    code += "        const vec4 bit_shift = vec4(5.96046e-08, 1.52588e-05, 0.00390625, 1.0);\n";
+                code += "        depth = dot(texture2D(shadowMap, shadowCoord.xy + vec2(0.0, dy1)), bit_shift);\n";
+                code += "        shadowAccum += (depth < shadowCoord.z) ? 0.0 : shadowContrib;\n";
 
-                    code += "        depth = dot(texture2D(sm, shadowCoord.xy + vec2(xWest, ySouth)), bit_shift);\n";
-                    code += "        shadowAccum += (depth < shadowCoord.z) ? 0.0 : shadowContrib;\n";
+                code += "        depth = dot(texture2D(shadowMap, shadowCoord.xy + vec2(dx1, dy1)), bit_shift);\n";
+                code += "        shadowAccum += (depth < shadowCoord.z) ? 0.0 : shadowContrib;\n";
+*/
 
-                    code += "        depth = dot(texture2D(sm, shadowCoord.xy + vec2(0.0, ySouth)), bit_shift);\n";
-                    code += "        shadowAccum += (depth < shadowCoord.z) ? 0.0 : shadowContrib;\n";
+                code += "        float xoffset = 1.0 / sp[0];\n"; // 1/shadow map width
+                code += "        float yoffset = 1.0 / sp[1];\n"; // 1/shadow map height
+                code += "        float dx0 = -xoffset;\n";
+                code += "        float dy0 = -yoffset;\n";
+                code += "        float dx1 = xoffset;\n";
+                code += "        float dy1 = yoffset;\n";
 
-                    code += "        depth = dot(texture2D(sm, shadowCoord.xy + vec2(xEast, ySouth)), bit_shift);\n";
-                    code += "        shadowAccum += (depth < shadowCoord.z) ? 0.0 : shadowContrib;\n";
+                code += "        mat3 shadowKernel;\n",
+                code += "        mat3 depthKernel;\n",
 
-                    code += "        depth = dot(texture2D(sm, shadowCoord.xy + vec2(xWest, 0.0)), bit_shift);\n";
-                    code += "        shadowAccum += (depth < shadowCoord.z) ? 0.0 : shadowContrib;\n";
+                // Vector equivalent to vec4(1.0/(256.0*256.0*256.0), 1.0/(256.0*256.0), 1.0/256.0, 1.0)";
+                code += "        const vec4 bit_shift = vec4(5.96046e-08, 1.52588e-05, 0.00390625, 1.0);\n";
 
-                    code += "        depth = dot(texture2D(sm, shadowCoord.xy), bit_shift);\n";
-                    code += "        shadowAccum += (depth < shadowCoord.z) ? 0.0 : shadowContrib;\n";
+                code += "        depthKernel[0][0] = dot(texture2D(shadowMap, shadowCoord.xy + vec2(dx0, dy0)), bit_shift);\n";
+                code += "        shadowKernel[0][0] = (depthKernel[0][0] < shadowCoord.z) ? 0.25 : 0.0;\n";
 
-                    code += "        depth = dot(texture2D(sm, shadowCoord.xy + vec2(xEast, 0.0)), bit_shift);\n";
-                    code += "        shadowAccum += (depth < shadowCoord.z) ? 0.0 : shadowContrib;\n";
+                code += "        depthKernel[0][1] = dot(texture2D(shadowMap, shadowCoord.xy + vec2(dx0, 0.0)), bit_shift);\n";
+                code += "        shadowKernel[0][1] = (depthKernel[0][1] < shadowCoord.z) ? 0.25 : 0.0;\n";
 
-                    code += "        depth = dot(texture2D(sm, shadowCoord.xy + vec2(xWest, yNorth)), bit_shift);\n";
-                    code += "        shadowAccum += (depth < shadowCoord.z) ? 0.0 : shadowContrib;\n";
+                code += "        depthKernel[0][2] = dot(texture2D(shadowMap, shadowCoord.xy + vec2(dx0, dy1)), bit_shift);\n";
+                code += "        shadowKernel[0][2] = (depthKernel[0][2] < shadowCoord.z) ? 0.25 : 0.0;\n";
 
-                    code += "        depth = dot(texture2D(sm, shadowCoord.xy + vec2(0.0, yNorth)), bit_shift);\n";
-                    code += "        shadowAccum += (depth < shadowCoord.z) ? 0.0 : shadowContrib;\n";
+                code += "        depthKernel[1][0] = dot(texture2D(shadowMap, shadowCoord.xy + vec2(0.0, dy0)), bit_shift);\n";
+                code += "        shadowKernel[1][0] = (depthKernel[1][0] < shadowCoord.z) ? 0.25 : 0.0;\n";
 
-                    code += "        depth = dot(texture2D(sm, shadowCoord.xy + vec2(xEast, yNorth)), bit_shift);\n";
-                    code += "        shadowAccum += (depth < shadowCoord.z) ? 0.0 : shadowContrib;\n";
-                }
+                code += "        depthKernel[1][1] = dot(texture2D(shadowMap, shadowCoord.xy), bit_shift);\n";
+                code += "        shadowKernel[1][1] = (depthKernel[1][1] < shadowCoord.z) ? 0.25 : 0.0;\n";
+
+                code += "        depthKernel[1][2] = dot(texture2D(shadowMap, shadowCoord.xy + vec2(0.0, dy1)), bit_shift);\n";
+                code += "        shadowKernel[1][2] = (depthKernel[1][2] < shadowCoord.z) ? 0.25 : 0.0;\n";
+
+                code += "        depthKernel[2][0] = dot(texture2D(shadowMap, shadowCoord.xy + vec2(dx1, dy0)), bit_shift);\n";
+                code += "        shadowKernel[2][0] = (depthKernel[2][0] < shadowCoord.z) ? 0.25 : 0.0;\n";
+
+                code += "        depthKernel[2][1] = dot(texture2D(shadowMap, shadowCoord.xy + vec2(dx1, 0.0)), bit_shift);\n";
+                code += "        shadowKernel[2][1] = (depthKernel[2][1] < shadowCoord.z) ? 0.25 : 0.0;\n";
+
+                code += "        depthKernel[2][2] = dot(texture2D(shadowMap, shadowCoord.xy + vec2(dx1, dy1)), bit_shift);\n";
+                code += "        shadowKernel[2][2] = (depthKernel[2][2] < shadowCoord.z) ? 0.25 : 0.0;\n";
+
+                code += "        vec2 fractionalCoord = 1.0 - fract( shadowCoord.xy * sp.xy );\n";
+
+                code += "        shadowKernel[0] = mix( shadowKernel[1], shadowKernel[0], fractionalCoord.x );\n";
+                code += "        shadowKernel[1] = mix( shadowKernel[2], shadowKernel[1], fractionalCoord.x );\n";
+
+                code += "        vec4 shadowValues;\n";
+                code += "        shadowValues.x = mix( shadowKernel[0][1], shadowKernel[0][0], fractionalCoord.y );\n";
+                code += "        shadowValues.y = mix( shadowKernel[0][2], shadowKernel[0][1], fractionalCoord.y );\n";
+                code += "        shadowValues.z = mix( shadowKernel[1][1], shadowKernel[1][0], fractionalCoord.y );\n";
+                code += "        shadowValues.w = mix( shadowKernel[1][2], shadowKernel[1][1], fractionalCoord.y );\n";
+
+                code += "        shadowAccum = 1.0 - dot( shadowValues, vec4( 1.0 ) );\n";
+
                 code += "        return shadowAccum;\n";
             }
             code += "    }\n";
@@ -596,27 +659,7 @@ pc.gfx.programlib.phong = {
             code += "    }\n";
             code += "}\n\n";
         }
-/*
-        if ((totalPnts > 0) || (totalSpts > 0)) {
-            code += "\n";
-            code += "float calculateAttenuation(float d, float r, float cutoff)\n";
-            code += "{\n";
-            // calculate normalized light vector and distance to sphere light surface
-            code += "    d = max(d - r, 0.0);\n";
 
-            // calculate basic attenuation
-            code += "    float denom = d/r + 1.0;\n";
-            code += "    float attenuation = 1 / (denom*denom);\n";
-
-            // scale and bias attenuation such that:
-            //   attenuation == 0 at extent of max influence
-            //   attenuation == 1 when d == 0
-            code += "    attenuation = (attenuation - cutoff) / (1 - cutoff);\n";
-            code += "    attenuation = max(attenuation, 0);\n";
-            code += "    return attenuation;\n";
-            code += "}\n";
-        }
-*/
         // FRAGMENT SHADER BODY
         code += getSnippet('common_main_begin');
 
@@ -646,14 +689,16 @@ pc.gfx.programlib.phong = {
                 }
             }
 
-            if (options.normalMap) {
-                if (options.normalMapTransform) {
-                    code += "    vec2 uvBumpMap = vUvBumpMap;\n";
-                } else {
-                    code += "    vec2 uvBumpMap = vUv0;\n";
+            if (options.glossMap) {
+                if (options.glossMapTransform) {
+                    code += "    vec2 uvGlossMap = vUvGlossMap;\n";
+                } else { 
+                    code += "    vec2 uvGlossMap = vUv0;\n";
                 }
-            } else if (options.parallaxMap) {
-                if (options.parallaxMapTransform) {
+            }
+
+            if (options.normalMap || options.heightMap) {
+                if (options.normalMapTransform || options.heightMapTransform) {
                     code += "    vec2 uvBumpMap = vUvBumpMap;\n";
                 } else {
                     code += "    vec2 uvBumpMap = vUv0;\n";
@@ -683,211 +728,179 @@ pc.gfx.programlib.phong = {
 
         // Read the map texels that the shader needs
         if (lighting) {
-            code += "    vec3 viewDir = normalize(vViewDir);\n";
-            
-            if (options.normalMap) {
-                code += "    vec3 normMapPixel = texture2D(texture_normalMap, uvBumpMap).rgb;\n";
-            } else if (options.parallaxMap) {
+            code += "    vec3 viewDirW = normalize(vViewDirW);\n";
+            if (!(options.normalMap && useTangents)) {
+                code += "    vec3 normalW = normalize(vNormalW);\n";
+            }
+
+            if (options.normalMap && options.heightMap) {
                 // Shift UV0 if parallax mapping is enabled
-                code += "    float height = texture2D(texture_parallaxMap, uvBumpMap).a;\n";
-                // Scale and bias
-                code += "    float offset = height * 0.025 - 0.02;\n";
-                code += "    vec3 normMapPixel = texture2D(texture_parallaxMap, uvBumpMap + offset * viewDir.xy).rgb;\n";
+                code += "    const float parallaxScale = 0.025;\n";
+                code += "    const float parallaxBias = 0.01;\n";
+                code += "    float height = texture2D(texture_heightMap, uvBumpMap).a * parallaxScale - parallaxBias;\n";
+                code += "    uvBumpMap = uvBumpMap - min(height * viewDirW.xy, vec2(parallaxBias));\n";
                 if (options.diffuseMap) {
-                    code += "    uvDiffuseMap += offset * viewDir.xy;\n";
+                    code += "    uvDiffuseMap = uvDiffuseMap - min(height * viewDirW.xy, vec2(parallaxBias));\n";
                 }
                 if (options.specularMap) {
-                    code += "    uvSpecularMap += offset * viewDir.xy;\n";
+                    code += "    uvSpecularMap = uvSpecularMap - min(height * viewDirW.xy, vec2(parallaxBias));\n";
                 }
             }
+            code += "\n";
         }
 
+        // Select the sources for material color
         if (options.diffuseMap) {
-            code += "    vec4 diffMapPixel = texture2D(texture_diffuseMap, uvDiffuseMap);\n";
+            code += "    vec3 diffuseColor = texture2D(texture_diffuseMap, uvDiffuseMap).rgb;\n";
+            code += "    vec3 ambientColor = diffuseColor;\n";
+        } else {
+            code += "    vec3 ambientColor = material_ambient;\n";
+            code += "    vec3 diffuseColor = material_diffuse;\n";
         }
         if (lighting) {
             if (options.specularMap) {
-                code += "    vec4 specMapPixel = texture2D(texture_specularMap, uvSpecularMap);\n";
+                code += "    vec3 specularColor = texture2D(texture_specularMap, uvSpecularMap).rgb;\n";
+            } else {
+                code += "    vec3 specularColor = material_specular;\n";
             }
             if (options.specularFactorMap) {
-                code += "    vec4 specFacMapPixel = texture2D(texture_specularFactorMap, uvSpecularFactorMap);\n";
+                code += "    specularColor *= texture2D(texture_specularFactorMap, uvSpecularFactorMap).rgb;\n";
+            }
+            // Hack: On Mac OS X, calling pow with zero for the exponent generates hideous artifacts so bias up a little
+            if (options.glossMap) {
+                code += "    float shininess = texture2D(texture_glossMap, uvGlossMap).r * 100.0 + 0.0001;\n";
+            } else {
+                code += "    float shininess = material_shininess + 0.0001;\n";
             }
         }
-        if (options.lightMap) {
-            code += "    vec4 lghtMapPixel = texture2D(texture_lightMap, uvLightMap);\n";
-        }
-
-        if (options.diffuseMap) {
-            code += "    gl_FragColor.rgb  = diffMapPixel.rgb * light_globalAmbient;\n";
+        if (options.emissiveMap) {
+            code += "    vec3 emissiveColor = texture2D(texture_emissiveMap, uvEmissiveMap).rgb;\n";
         } else {
-            code += "    gl_FragColor.rgb  = material_ambient * light_globalAmbient;\n";
+            code += "    vec3 emissiveColor = material_emissive;\n";
         }
-
         if (options.opacityMap) {
-            code += "    gl_FragColor.a = texture2D(texture_opacityMap, uvOpacityMap).r;\n";
-        } else if (options.diffuseMap) {
-            code += "    gl_FragColor.a = material_opacity * diffMapPixel.a;\n";
+            code += "    float opacity = texture2D(texture_opacityMap, uvOpacityMap).r;\n";
         } else {
-            code += "    gl_FragColor.a = material_opacity;\n";
+            code += "    float opacity = material_opacity;\n";
         }
+        code += "\n";
+
         if (options.alphaTest) {
             code += getSnippet('fs_alpha_test');
         }
 
-        if (lighting) {
-            code += "    vec3 lightDir;\n";
-            code += "    vec3 diffuse, specular;\n";
+        if (lighting || options.lightMap) {
             code += "    vec3 diffuseContrib = vec3(0.0);\n";
-            code += "    float specularContrib = 0.0;\n";
-            code += "    float d, nDotL;\n";
-            if (options.cubeMap || options.sphereMap) {
-                code += "    float lambertContrib = 0.0;\n";
-            }
-            if (numShadowLights > 0) {
-                code += "    float shadowFactor = 0.0;\n";
-            }
-            if ((options.normalMap) || (options.parallaxMap)) {
-                // Use a normal extracted from the supplied normal map
-                code += "    vec3 N = normalize(normMapPixel * 2.0 - 1.0);\n";
+        }
+
+        if (lighting) {
+            code += "    vec3 specularContrib = vec3(0.0);\n";
+
+            // Calculate a surface normal
+            if (options.normalMap) {
+                if (useTangents) {
+                    code += "    vec3 N = normalize(texture2D(texture_normalMap, uvBumpMap).xyz * 2.0 - 1.0);\n";
+                    code += "    N = normalize(mix(vec3(0.0, 0.0, 1.0), N, material_bumpMapFactor));\n";
+                } else {
+                    code += "    vec3 N = perturb_normal(normalW, viewDirW, uvBumpMap);\n";
+                }
             } else {
                 // Use a normal interpolated from vertex normals
-                code += "    vec3 N = vNormalE;\n";
+                code += "    vec3 N = normalW;\n";
             }
+
+            code += "    vec3 L, R;\n";
+            code += "    float diffuseLight, specularLight;\n";
+            if (totalPnts + totalSpts > 0) {
+                code += "    float d, attenuation;\n";
+            }
+            if (totalSpts > 0) {
+                code += "    float cosAngle, spotEffect;\n";
+            }
+            if (numShadowLights > 0) {
+                code += "    float shadowFactor;\n";
+            }
+            code += "\n";
 
             for (i = 0; i < totalLights; i++) {
-                if (i < totalDirs) {
-                    code += "    lightDir = normalize(vLight" + i + "Dir);\n";
-                    code += "    nDotL = max(0.0, dot(N, lightDir));\n";
-                    code += "    if (nDotL > 0.0)\n";
-                    code += "    {\n";
-                    code += "        diffuseContrib += light" + i + "_color * nDotL;\n";
-                    if (options.cubeMap || options.sphereMap) {
-                        code += "        lambertContrib += nDotL;\n";
-                    } else {
-                        if (options.specularMap) {
-                            code += "        float shininess = specMapPixel.a * 100.0;\n";
-                        } else {
-                            code += "        float shininess = material_shininess;\n";
-                        }
-                        code += "        if (shininess > 0.0)\n";
-                        code += "        {\n";
-                        code += "            vec3 R = normalize(-reflect(lightDir, N));\n";
-                        code += "            float rDotV = max(0.0, dot(R, viewDir));\n";
-                        code += "            specularContrib += pow(rDotV, shininess);\n";
-                        code += "        }\n";
-                    }
-                    code += "    }\n";
-                } else {
-                    code += "    d = length(vLight" + i + "Dir);\n";
-                    code += "    if (d < light" + i + "_radius)\n";
-                    code += "    {\n";
-                    code += "        lightDir = normalize(vLight" + i + "Dir);\n";
-                    code += "        nDotL = max(0.0, dot(N, lightDir));\n";
-                    code += "        if (nDotL > 0.0)\n";
-                    code += "        {\n";
-                    code += "            float att = ((light" + i + "_radius - d) / light" + i + "_radius);\n";
-//                    code += "            float att = light" + i + "_attenuate ? 1.0 : calculateAttenuation(N, light" + i + "_range, ;\n";
-                    if (i >= totalDirs + totalPnts) {
-                        code += "            float cosAngle = dot(-lightDir, normalize(vLight" + i + "SpotDir));\n";
-                        code += "            float cosInnerAngle = light" + i + "_innerConeAngle;\n";
-                        code += "            float cosOuterAngle = light" + i + "_outerConeAngle;\n";
-                        code += "            att *= clamp((cosAngle - cosOuterAngle) / (cosInnerAngle - cosOuterAngle), 0.0, 1.0);\n";
-                    }
-                    code += "            diffuseContrib += light" + i + "_color * nDotL * att;\n";
-                    if (options.cubeMap || options.sphereMap) {
-                        code += "            lambertContrib += nDotL;\n";
-                    } else {
-                        if (options.specularMap) {
-                            code += "            float shininess = specMapPixel.a * 100.0;\n";
-                        } else {
-                            code += "            float shininess = material_shininess;\n";
-                        }
-                        code += "            if (shininess > 0.0)\n";
-                        code += "            {\n";
-                        code += "                vec3 R = normalize(-reflect(lightDir, N));\n";
-                        code += "                float rDotV = max(0.0, dot(R, viewDir));\n";
-                        code += "                specularContrib += pow(rDotV, shininess) * att;\n";
-                        code += "            }\n";
-                    }
-                    code += "        }\n";
-                    code += "    }\n";
-                }
-
-                if ((i >= options.numDirs && i < totalDirs) || 
+                var positionalLight = i >= totalDirs;
+                var spotLight = i >= totalDirs + totalPnts;
+                var shadowLight =
+                   ((i >= options.numDirs && i < totalDirs) || 
                     (i >= totalDirs + options.numPnts && i < totalDirs + totalPnts) || 
-                    (i >= totalDirs + totalPnts + options.numSpts && i < totalLights)) {
-                    code += "    shadowFactor += calculateShadowFactor(vLight" + i + "ShadowCoord, light" + i + "_shadowParams, light" + i + "_shadowMap);\n";
-                }
-            }
+                    (i >= totalDirs + totalPnts + options.numSpts && i < totalLights));
 
-            // Select the sources for material color
-            if (options.diffuseMap) {
-                code += "    diffuse = diffMapPixel.rgb;\n";
-            } else {
-                code += "    diffuse = material_diffuse;\n";
-            }
-            if (options.cubeMap) {
-                // Need to factor in lambert term here somehow
-                if (options.normalMap) {
-                    code += "    vec3 normalW = (vec4(N, 0.0) * matrix_view).xyz;\n";
-                } else {
-                    code += "    vec3 normalW = normalize(vNormalW);\n";
+                code += "    L = normalize(vLight" + i + "DirW);\n";
+                code += "    diffuseLight = max(dot(N, L), 0.0);\n";
+                code += "    R = normalize(-reflect(L, N));\n";
+                code += "    specularLight = pow(max(dot(R, viewDirW), 0.0), shininess);\n";
+                if (positionalLight) {
+                    // Linear attenuation
+                    code += "    d = length(vLight" + i + "DirW);\n";
+                    code += "    attenuation = max(((light" + i + "_radius - d) / light" + i + "_radius), 0.0);\n";
                 }
-                code += "    vec3 reflectW = -reflect(normalize(vVertToEyeW), normalW);\n";
-                code += "    specular = textureCube(texture_cubeMap, reflectW).rgb * material_reflectionFactor;\n";
-                code += "    specularContrib = 1.0;\n";
-            } else if (options.sphereMap) {
-                code += "    vec3 R = normalize(-reflect(lightDir, N));\n";
-                code += "    float m = 2.0 * sqrt( R.x*R.x + R.y*R.y + (R.z+1.0)*(R.z+1.0) );\n";
-                code += "    vec2 sphereMapUv = vec2(R.x/m + 0.5, R.y/m + 0.5);\n";
-                // Need to factor in lambert term here somehow
-                code += "    specular = texture2D(texture_sphereMap, sphereMapUv).rgb * lambertContrib * material_reflectionFactor;\n";
-                code += "    specularContrib = 1.0;\n";
-            } else if (options.specularMap) {
-                if (options.specularFactorMap) {
-                    code += "    specular = specMapPixel.rgb * specFacMapPixel.rgb;\n";
-                } else {
-                    code += "    specular = specMapPixel.rgb;\n";
+                if (spotLight) {
+                    // Spotlight inner cone -> outer cone
+                    code += "    cosAngle = dot(-L, vLight" + i + "SpotDirW);\n";
+                    code += "    spotEffect = smoothstep(light" + i + "_outerConeAngle, light" + i + "_innerConeAngle, cosAngle);\n";
                 }
-            } else {
-                if (options.specularFactorMap) {
-                    code += "    specular = material_specular * specFacMapPixel.rgb;\n";
-                } else {
-                    code += "    specular = material_specular;\n";
+                if (shadowLight) {
+                    code += "    shadowFactor = calculateShadowFactor(vLight" + i + "ShadowCoord, light" + i + "_shadowParams, light" + i + "_shadowMap);\n";
                 }
-            }
-
-            // Add ambient + diffuse + specular
-            if (options.lightMap) {
-                code += "    diffuseContrib += lghtMapPixel.rgb;\n";
-            }
-
-            if (numShadowLights > 0) {
-                if (numShadowLights > 1) {
-                    code += "    shadowFactor *= 1.0 / " + numShadowLights + ".0;\n";
-                }
-                code += "    diffuse = diffuse * shadowFactor;\n";
-                code += "    specular = specular * shadowFactor;\n";
-            }
-
-            code += "    gl_FragColor.rgb += diffuse * diffuseContrib;\n";
-            code += "    gl_FragColor.rgb += specular * specularContrib;\n";
-        } else if (options.lightMap) {
-            if (options.diffuseMap) {
-                code += "    gl_FragColor.rgb += diffMapPixel.rgb * lghtMapPixel.rgb;\n";
-            } else {
-                code += "    gl_FragColor.rgb += lghtMapPixel.rgb;\n";
+                code += "    diffuseContrib += light" + i + "_color * diffuseLight" + (positionalLight ? " * attenuation" : "") + (spotLight ? " * spotEffect" : "") + (shadowLight ? " * shadowFactor" : "") + ";\n";
+                code += "    if (diffuseLight <= 0.0) specularLight = 0.0;\n";
+                code += "    specularContrib += light" + i + "_color * specularLight" + (positionalLight ? " * attenuation" : "") + (spotLight ? " * spotEffect" : "") + (shadowLight ? " * shadowFactor" : "") + ";\n\n";
             }
         }
 
-        if (options.emissiveMap) {
-            code += "    gl_FragColor.rgb += texture2D(texture_emissiveMap, uvEmissiveMap).rgb;\n";
-        } else if (options.emissiveColor) {
-            code += "    gl_FragColor.rgb += material_emissive;\n";
+        // Process light map
+        if (options.lightMap) {
+            code += "    diffuseContrib += texture2D(texture_lightMap, uvLightMap).rgb;\n";
         }
 
+        // Process reflection map
+        if (lighting) {
+            if (options.cubeMap || options.sphereMap) {
+                code += "    vec3 reflectW = -reflect(viewDirW, N);\n";
+                if (options.cubeMap) {
+                    // Need to factor in lambert term here somehow
+                    code += "    vec3 reflectionColor = textureCube(texture_cubeMap, reflectW).rgb;\n";
+                } else if (options.sphereMap) {
+                    // Reference: http://www.reindelsoftware.com/Documents/Mapping/Mapping.html
+                    code += "    vec3 reflectE = (matrix_view * vec4(reflectW, 0.0)).xyz;\n";
+                    code += "    float m = 2.0 * sqrt( dot(reflectE.xy, reflectE.xy) + (reflectE.z+1.0)*(reflectE.z+1.0) );\n";
+                    code += "    vec2 sphereMapUv = reflectE.xy / m + 0.5;\n";
+                    code += "    vec3 reflectionColor = texture2D(texture_sphereMap, sphereMapUv).rgb;\n";
+                }
+                code += "    diffuseColor = mix(diffuseColor, reflectionColor, material_reflectionFactor);\n\n";
+            }
+        }
+
+        // Calculate final lighting contributions
+        code += "    vec3 ambient  = ambientColor * light_globalAmbient;\n";
+        if (lighting || options.lightMap) {
+            code += "    vec3 diffuse  = diffuseColor * diffuseContrib;\n";
+        }
+        if (lighting) {
+            code += "    vec3 specular = specularColor * specularContrib;\n";
+        }
+        code += "    vec3 emissive = emissiveColor;\n\n";
+
+        // Write out final pixel color
+        code += "    gl_FragColor.rgb  = ambient;\n";
+        if (lighting || options.lightMap) {
+            code += "    gl_FragColor.rgb += diffuse;\n";
+        }
+        if (lighting) {
+            code += "    gl_FragColor.rgb += specular;\n";
+        }
+        code += "    gl_FragColor.rgb += emissive;\n";
+        code += "    gl_FragColor.a    = opacity;\n\n";
+
+        // Make sure all components are between 0 and 1
         code += getSnippet('fs_clamp');
 
+        // Fog
         if (options.fog) {
             code += getSnippet('fs_fog');
         }

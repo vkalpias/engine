@@ -23,7 +23,7 @@ pc.gfx.post.bloom = function () {
     var vertexBuffer = null;
 
     var quadPrimitive = {
-        type: pc.gfx.PrimType.TRIANGLE_STRIP,
+        type: pc.gfx.PRIMITIVE_TRISTRIP,
         base: 0,
         count: 4,
         indexed: false
@@ -203,10 +203,10 @@ pc.gfx.post.bloom = function () {
                 "}"
             ].join("\n");
 
-            var passThroughShader = new pc.gfx.Shader(pc.gfx.ShaderType.VERTEX, passThroughVert);
-            var extractShader = new pc.gfx.Shader(pc.gfx.ShaderType.FRAGMENT, bloomExtractFrag);
-            var blurShader = new pc.gfx.Shader(pc.gfx.ShaderType.FRAGMENT, gaussianBlurFrag);
-            var combineShader = new pc.gfx.Shader(pc.gfx.ShaderType.FRAGMENT, bloomCombineFrag);
+            var passThroughShader = new pc.gfx.Shader(pc.gfx.SHADERTYPE_VERTEX, passThroughVert);
+            var extractShader = new pc.gfx.Shader(pc.gfx.SHADERTYPE_FRAGMENT, bloomExtractFrag);
+            var blurShader = new pc.gfx.Shader(pc.gfx.SHADERTYPE_FRAGMENT, gaussianBlurFrag);
+            var combineShader = new pc.gfx.Shader(pc.gfx.SHADERTYPE_FRAGMENT, bloomCombineFrag);
             extractProg = new pc.gfx.Program(passThroughShader, extractShader);
             blurProg = new pc.gfx.Program(passThroughShader, blurShader);
             combineProg = new pc.gfx.Program(passThroughShader, combineShader);

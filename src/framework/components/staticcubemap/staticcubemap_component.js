@@ -4,8 +4,8 @@ pc.extend(pc.fw, function () {
      * @name pc.fw.StaticCubeMapComponent
      * @class Creates a static cubemap from assigned images
      * @constructor Create a new StaticCubeMapComponent
-    * @param {pc.fw.StaticCubeMapComponentSystem} system The ComponentSystem that created this Component
-    * @param {pc.fw.Entity} entity The Entity that this Component is attached to.
+     * @param {pc.fw.StaticCubeMapComponentSystem} system The ComponentSystem that created this Component
+     * @param {pc.fw.Entity} entity The Entity that this Component is attached to.
      * @extends pc.fw.Component
      */
     var StaticCubeMapComponent = function StaticCubeMapComponent (system, entity) {
@@ -28,50 +28,43 @@ pc.extend(pc.fw, function () {
                 // clear existing cubemap
                 this.cubemap = null;
 
-                if(guid) {
-                    this.system.context.loader.request(new pc.resources.AssetRequest(guid), function (resources) {
-                        assets[index] = resources[guid];
-                        //this.set(entity, "assets", assets);
-                        this.assets = assets;
+                if (guid) {
+                    assets[index] = this.system.context.assets.getAsset(guid);
+                    
+                    this.assets = assets;
 
-                        if(assets[0] && assets[1] && assets[2] 
-                        && assets[3] && assets[4] && assets[5]) {
-                            var urls = assets.map(function (asset) { 
-                                return asset.getFileUrl(); 
-                            });
-                            var cubemap = _createCubemap(this.entity, this.system.context, urls);
-                            this.cubemap = cubemap;
-                        }
-                    }.bind(this), function (errors) {
-                        
-                    }, function (progress) {
-                        
-                    }, options);
+                    if (assets[0] && assets[1] && assets[2] && assets[3] && assets[4] && assets[5]) {
+                        var urls = assets.map(function (asset) { 
+                            return asset.getFileUrl(); 
+                        });
+                        var cubemap = _createCubemap(this.entity, this.system.context, urls);
+                        this.cubemap = cubemap;
+                    }
                 } else {
                     delete assets[index];                
                 }
-            };
+            }
 
             var functions = {
                 "posx": function (name, oldValue, newValue) { 
-                        _loadTextureAsset.call(this, name, newValue) 
+                        _loadTextureAsset.call(this, name, newValue);
                     },
                 "negx": function (name, oldValue, newValue) { 
-                        _loadTextureAsset.call(this, name, newValue) 
+                        _loadTextureAsset.call(this, name, newValue);
                     },
                 "posy": function (name, oldValue, newValue) { 
-                        _loadTextureAsset.call(this, name, newValue) 
+                        _loadTextureAsset.call(this, name, newValue);
                     },
                 "negy": function (name, oldValue, newValue) { 
-                        _loadTextureAsset.call(this, name, newValue) 
+                        _loadTextureAsset.call(this, name, newValue);
                     },
                 "posz": function (name, oldValue, newValue) { 
-                        _loadTextureAsset.call(this, name, newValue) 
+                        _loadTextureAsset.call(this, name, newValue);
                     },
                 "negz": function (name, oldValue, newValue) { 
-                        _loadTextureAsset.call(this, name, newValue) 
+                        _loadTextureAsset.call(this, name, newValue);
                     }
-            }
+            };
 
             if (functions[name]) {
                 functions[name].call(this, name, oldValue, newValue);
@@ -119,5 +112,5 @@ pc.extend(pc.fw, function () {
 
     return {
         StaticCubeMapComponent: StaticCubeMapComponent
-    }
+    };
 }());

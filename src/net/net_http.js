@@ -264,7 +264,7 @@ pc.extend(pc.net, function () {
         },
         
         guessResponseType: function (url) {
-            var uri = new pc.URI(url)
+            var uri = new pc.URI(url);
             var ext = pc.path.getExtension(uri.path);
             
             if(Http.binaryExtensions.indexOf(ext) >= 0) {
@@ -315,7 +315,7 @@ pc.extend(pc.net, function () {
             header = xhr.getResponseHeader("Content-Type");
             if (header) { 
                 // Split up header into content type and parameter
-                var parts = header.split(";");
+                parts = header.split(";");
                 contentType = parts[0].trim();
                 if(parts[1]) {
                     parameter = parts[1].trim();
@@ -353,5 +353,5 @@ pc.extend(pc.net, function () {
     return {
         Http: Http,
         http: new Http()
-    }    
+    };
 }());

@@ -8,13 +8,13 @@ pc.extend(pc.fw, function () {
      * @constructor Create a new Application
      * @param {DOMElement} canvas The canvas element
      * @param {Object} options
-     * @param {Object} [options.config] Configuration options for the application
-     * @param {pc.common.DepotApi} [options.depot] API interface to the current depot
      * @param {pc.input.Controller} [options.controller] Generic input controller, available from the ApplicationContext as controller.
      * @param {pc.input.Keyboard} [options.keyboard] Keyboard handler for input, available from the ApplicationContext as keyboard.
      * @param {pc.input.Mouse} [options.mouse] Mouse handler for input, available from the ApplicationContext as mouse.
      * @param {Object} [options.libraries] List of URLs to javascript libraries which should be loaded before the application starts or any packs are loaded
      * @param {Boolean} [options.displayLoader] Display resource loader information during the loading progress. Debug only
+     * @param {pc.common.DepotApi} [options.depot] API interface to the current depot
+     * @param {String} [options.scriptPrefix] Prefix to apply to script urls before loading 
      *
      * @example
      * // Create application
@@ -28,6 +28,7 @@ pc.extend(pc.fw, function () {
         // Add event support
         pc.extend(this, pc.events);
 
+        this.content = options.content;
         this.canvas = canvas;
         this.fillMode = pc.fw.FillMode.KEEP_ASPECT;
         this.resolutionMode = pc.fw.ResolutionMode.FIXED;
@@ -55,8 +56,6 @@ pc.extend(pc.fw, function () {
     
         this.audioManager = new pc.audio.AudioManager();
         
-        var scriptPrefix = (options.config && options.config['script_prefix']) ? options.config['script_prefix'] : "";
-
 		// Create resource loader
 		var loader = new pc.resources.ResourceLoader();
         
@@ -64,16 +63,13 @@ pc.extend(pc.fw, function () {
         var textureCache = new pc.resources.TextureCache(loader);
         
         loader.registerHandler(pc.resources.ImageRequest, new pc.resources.ImageResourceHandler());
-        //loader.registerHandler(pc.resources.TextureRequest, new pc.resources.TextureResourceHandler());
         loader.registerHandler(pc.resources.ModelRequest, new pc.resources.ModelResourceHandler(textureCache));
         loader.registerHandler(pc.resources.AnimationRequest, new pc.resources.AnimationResourceHandler());
-        loader.registerHandler(pc.resources.EntityRequest, new pc.resources.EntityResourceHandler(registry, options.depot));
         loader.registerHandler(pc.resources.PackRequest, new pc.resources.PackResourceHandler(registry, options.depot));
-        loader.registerHandler(pc.resources.AssetRequest, new pc.resources.AssetResourceHandler(options.depot));
         loader.registerHandler(pc.resources.AudioRequest, new pc.resources.AudioResourceHandler(this.audioManager));
 
         // Display shows debug loading information. Only really fit for debug display at the moment.
-        if (options['displayLoader']) {
+        if (options.displayLoader) {
             var loaderdisplay = new pc.resources.ResourceLoaderDisplay(document.body, loader);
         }
 
@@ -81,7 +77,7 @@ pc.extend(pc.fw, function () {
         this.context = new pc.fw.ApplicationContext(loader, new pc.scene.Scene(), registry, options);
     
         // Register the ScriptResourceHandler late as we need the context        
-        loader.registerHandler(pc.resources.ScriptRequest, new pc.resources.ScriptResourceHandler(this.context, scriptPrefix));
+        loader.registerHandler(pc.resources.ScriptRequest, new pc.resources.ScriptResourceHandler(this.context, options.scriptPrefix));
 
         var animationsys = new pc.fw.AnimationComponentSystem(this.context);
         var bloomsys = new pc.fw.BloomComponentSystem(this.context);
@@ -144,6 +140,71 @@ pc.extend(pc.fw, function () {
     };
 
     Application.prototype = {
+        /**
+        * Load a pack and asset set from a table of contents config
+        * @param {String} name The name of the Table of Contents block to load
+        */
+        loadFromToc: function (name, success, error, progress) {
+            if (!this.content) {
+                error('No content');
+            }
+
+            var toc = this.content.toc[name];
+
+            success = success || function () {};
+            error = error || function () {};
+            progress = progress || function () {};
+            
+            var requests = [];
+
+            // Populate the AssetCache and register hashes
+            this.context.assets.update(toc, this.context.loader);
+
+            for (var guid in toc.assets) {
+                var asset = this.context.assets.getAsset(guid);
+                // Create a request for all files
+                requests.push(this.context.loader.createFileRequest(asset.getFileUrl(), asset.file.type));
+                asset.subfiles.forEach(function (file, index) {
+                    requests.push(this.context.loader.createFileRequest(asset.getSubAssetFileUrl(index), file.type));
+                }.bind(this));
+            }
+
+            var onLoaded = function (resources) {
+                // load pack 
+                guid = toc.packs[0];
+                
+                var request = new pc.resources.PackRequest(guid);
+                this.context.loader.request(request, function (resources) {
+                    var pack = resources[guid];
+                    this.context.root.addChild(pack.hierarchy);
+                    pc.fw.ComponentSystem.initialize(pack.hierarchy);
+                    success(resources[guid]);
+                }.bind(this), error, progress);
+            }.bind(this);
+
+            var load = function () {
+                if (requests.length) {
+                    // Request all asset files
+                    this.context.loader.request(requests, function (resources) {
+                        onLoaded(resources);
+                    }.bind(this), error, progress);                
+                } else {
+                    // No assets to load
+                    setTimeout(function () {
+                        onLoaded([]);
+                    }, 0);
+                }                
+            }.bind(this);
+
+            if (!this.librariesLoaded) {
+                this.on('librariesloaded', function () {
+                    load();
+                });
+            } else {
+                load();
+            }
+        },
+
         loadPack: function (guid, success, error, progress) {
             var load = function() {
                 var request = new pc.resources.PackRequest(guid);
@@ -151,10 +212,10 @@ pc.extend(pc.fw, function () {
                     var pack = resources[guid];
 
                     // add to hierarchy
-                    this.context.root.addChild(pack['hierarchy']);
+                    this.context.root.addChild(pack.hierarchy);
                     
                     // Initialise any systems with an initialize() method after pack is loaded
-                    pc.fw.ComponentSystem.initialize(pack['hierarchy']);
+                    pc.fw.ComponentSystem.initialize(pack.hierarchy);
                     
                     // callback
                     if (success) {
@@ -168,7 +229,7 @@ pc.extend(pc.fw, function () {
                 }.bind(this), function (value) {
                     // progress
                     if (progress) {
-                        progress(value)
+                        progress(value);
                     }
                 }.bind(this));
             }.bind(this);
@@ -176,7 +237,7 @@ pc.extend(pc.fw, function () {
             if (!this.librariesLoaded) {
                 this.on('librariesloaded', function () {
                     load();
-                })
+                });
             } else {
                 load();
             }
@@ -469,12 +530,15 @@ pc.extend(pc.fw, function () {
         * been loaded
         */
         onLibrariesLoaded: function () {
+            // Create systems that may require external libraries
             var body2dsys = new pc.fw.Body2dComponentSystem(this.context);    
             var collisionrectsys = new pc.fw.CollisionRectComponentSystem(this.context);
             var collisioncirclesys = new pc.fw.CollisionCircleComponentSystem(this.context);
 
-            var body3dsys = new pc.fw.Body3dComponentSystem(this.context);    
+            var rigidbodysys = new pc.fw.RigidBodyComponentSystem(this.context);    
             var collisionboxsys = new pc.fw.CollisionBoxComponentSystem(this.context);
+            var collisioncapsulesys = new pc.fw.CollisionCapsuleComponentSystem(this.context);
+            var collisionmeshsys = new pc.fw.CollisionMeshComponentSystem(this.context);
             var collisionspheresys = new pc.fw.CollisionSphereComponentSystem(this.context);
         },
 
@@ -485,31 +549,34 @@ pc.extend(pc.fw, function () {
          * @param {pc.fw.LiveLiveMessage} msg The received message
          */
         _handleMessage: function (msg) {
+            var entity;
+
             switch(msg.type) {
                 case pc.fw.LiveLinkMessageType.UPDATE_COMPONENT:
-                    this._updateComponent(msg.content.id, msg.content.component, msg.content.attribute, msg.content.value);
+                    this._linkUpdateComponent(msg.content.id, msg.content.component, msg.content.attribute, msg.content.value);
                     break;
                 case pc.fw.LiveLinkMessageType.UPDATE_ENTITY:
-                    this._updateEntity(msg.content.id, msg.content.components);
+                    this._linkUpdateEntity(msg.content.id, msg.content.components);
                     break;
                 case pc.fw.LiveLinkMessageType.UPDATE_ENTITY_TRANSFORM:
-                    this._updateEntityTransform(msg.content.id, msg.content.position, msg.content.rotation, msg.content.scale);
+                    this._linkUpdateEntityTransform(msg.content.id, msg.content.position, msg.content.rotation, msg.content.scale);
                     break;
                 case pc.fw.LiveLinkMessageType.UPDATE_ENTITY_NAME:
-                    var entity = this.context.root.findOne("getGuid", msg.content.id);
+                    entity = this.context.root.findOne("getGuid", msg.content.id);
                     entity.setName(msg.content.name);
                     break;
                 case pc.fw.LiveLinkMessageType.REPARENT_ENTITY:
-                    this._reparentEntity(msg.content.id, msg.content.newParentId, msg.content.index);
+                    this._linkReparentEntity(msg.content.id, msg.content.newParentId, msg.content.index);
                     break;
                 case pc.fw.LiveLinkMessageType.CLOSE_ENTITY:
-                    var entity = this.context.root.findOne("getGuid", msg.content.id);
+                    entity = this.context.root.findOne("getGuid", msg.content.id);
                     if(entity) {
                         logDEBUG(pc.string.format("RT: Removed '{0}' from parent {1}", msg.content.id, entity.getParent().getGuid())); 
                         entity.destroy();
                     }
                     break;
                 case pc.fw.LiveLinkMessageType.OPEN_ENTITY:
+                    var parent;
                     var entities = {};
                     var guid = null;
                     if (msg.content.entity) {
@@ -518,12 +585,12 @@ pc.extend(pc.fw, function () {
                             application_data: {},
                             hierarchy: msg.content.entity
                         };
-                        var pack = this.context.loader.open(pc.resources.PackRequest, pack);
+                        pack = this.context.loader.open(pc.resources.PackRequest, pack);
 
                         // Get the root entity back from the fake pack
-                        var entity = pack['hierarchy'];
+                        entity = pack.hierarchy;
                         if (entity.__parent) {
-                            var parent = this.context.root.findByGuid(entity.__parent);
+                            parent = this.context.root.findByGuid(entity.__parent);
                             parent.addChild(entity);
                         } else {
                             this.context.root.addChild(entity);
@@ -534,7 +601,7 @@ pc.extend(pc.fw, function () {
 
                         for (i = 0; i < len; i++) {
                             var model = msg.content.models[i];
-                            var entity = this.context.loader.open(pc.resources.EntityRequest, model);
+                            entity = this.context.loader.open(pc.resources.EntityRequest, model);
                             entities[entity.getGuid()] = entity;
                         }
                         
@@ -546,7 +613,7 @@ pc.extend(pc.fw, function () {
                                     this.context.root.addChild(entities[guid]);
                                 } else if (!entities[entities[guid].__parent]) {
                                     // If entity has a parent in the existing tree add it (if entities[__parent] exists then this step will be performed in patchChildren for the parent)
-                                    var parent = this.context.root.findByGuid(entities[guid].__parent);
+                                    parent = this.context.root.findByGuid(entities[guid].__parent);
                                     parent.addChild(entities[guid]);
                                 }
                             }
@@ -558,14 +625,14 @@ pc.extend(pc.fw, function () {
 
         /**
          * @function
-         * @name pc.fw.Application#_updateComponent
+         * @name pc.fw.Application#_linkUpdateComponent
          * @description Update a value on a component, 
          * @param {String} guid GUID for the entity
          * @param {String} componentName name of the component to update
          * @param {String} attributeName name of the attribute on the component
          * @param {Object} value - value to set attribute to
          */
-        _updateComponent: function(guid, componentName, attributeName, value) {
+        _linkUpdateComponent: function(guid, componentName, attributeName, value) {
             var entity = this.context.root.findOne("getGuid", guid);
             //var system;
                 
@@ -576,7 +643,7 @@ pc.extend(pc.fw, function () {
                         entity[componentName][attributeName] = value;
                         //system.set(entity, attributeName, value);
                     } else {
-                        logWARNING(pc.string.format("No component system called '{0}' exists", componentName))
+                        logWARNING(pc.string.format("No component system called '{0}' exists", componentName));
                     }
                 } else {
                     // set value on node
@@ -585,32 +652,19 @@ pc.extend(pc.fw, function () {
             }
         },
 
-        _updateEntityTransform: function (guid, position, rotation, scale) {
+        _linkUpdateEntityTransform: function (guid, position, rotation, scale) {
             var entity = this.context.root.findByGuid(guid);
             if(entity) {
                 entity.setLocalPosition(position);
                 entity.setLocalEulerAngles(rotation);
                 entity.setLocalScale(scale);
 
-                // TODO: I don't like referencing a specific system here, but the body2d system won't pick up changes to the ltm 
-                // unless we tell it directly. (Because it is simulating from the physics world). Perhaps we could do this 
-                // by firing an event which the body system subscribes to instead. But I do we really want entities (or nodes) firing
-                // an event everytime the transform is updated, sounds slow. Perhaps we can fire an event from in here.
-                if (this.context.systems.body2d && entity.body2d) {
-                    entity.body2d.setTransform(entity.getWorldTransform());
-                    entity.body2d.setLinearVelocity(0, 0);
-                    entity.body2d.setAngularVelocity(0);
-                }
-
-                if (this.context.systems.body3d && entity.body3d) {
-                    entity.body3d.setTransform(entity.getWorldTransform());
-                    entity.body3d.setLinearVelocity(0,0,0);
-                    entity.body3d.setAngularVelocity(0,0,0);
-                }
+                // Fire event to notify listeners that the transform has been changed by an external tool
+                entity.fire('livelink:updatetransform', position, rotation, scale);
             }
         },
         
-        _reparentEntity: function (guid, parentId, index) {
+        _linkReparentEntity: function (guid, parentId, index) {
             var entity = this.context.root.findByGuid(guid);
             var parent = this.context.root.findByGuid(parentId);
             // TODO: use index to insert child into child list
@@ -625,7 +679,7 @@ pc.extend(pc.fw, function () {
          * @param {Object} guid GUID of the entity
          * @param {Object} components Component object keyed by component name.
          */
-        _updateEntity: function (guid, components) {
+        _linkUpdateEntity: function (guid, components) {
             var type;
             var entity = this.context.root.findOne("getGuid", guid);
             
@@ -639,9 +693,6 @@ pc.extend(pc.fw, function () {
                         if (!entity[type]) {
                             this.context.systems[type].addComponent(entity, {});
                         }
-                       // if(!this.context.systems[type].hasComponent(entity)) {
-                       //      this.context.systems[type].createComponent(entity);
-                       //  }
                     }
                 }
                 
@@ -701,7 +752,7 @@ pc.extend(pc.fw, function () {
                 get: function () {
                     return document.webkitCurrentFullScreenElement || document.webkitFullscreenElement || document.mozFullScreenElement;
                 }
-            })
+            });
         }
         
         if (!document.fullscreenEnabled) {
@@ -711,7 +762,7 @@ pc.extend(pc.fw, function () {
                 get: function () {
                     return document.webkitFullscreenEnabled || document.mozFullScreenEnabled;
                 }
-            })
+            });
         }
 
     }());

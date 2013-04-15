@@ -10,14 +10,14 @@ pc.extend(pc.fw, function () {
      * @property {String} asset The GUID of the asset for the model
      * @property {Boolean} castShadows If true, this model will cast shadows for lights that have shadow casting enabled.
      * @property {Boolean} receiveShadows If true, shadows will be cast on this model
-     * @property {pc.scene.Model} model The mode; node that is added to the scene graph.
+     * @property {pc.scene.Model} model The model that is added to the scene graph.
      */
     var ModelComponent = function ModelComponent (system, entity) {
         this.on("set_asset", this.onSetAsset, this);
         this.on("set_castShadows", this.onSetCastShadows, this);
         this.on("set_model", this.onSetModel, this);
         this.on("set_receiveShadows", this.onSetReceiveShadows, this);
-    }
+    };
     ModelComponent = pc.inherits(ModelComponent, pc.fw.Component);
     
     pc.extend(ModelComponent.prototype, {
@@ -40,42 +40,36 @@ pc.extend(pc.fw, function () {
         },
 
         loadModelAsset: function(guid) {
-            var request = new pc.resources.AssetRequest(guid);
             var options = {
                 batch: this.entity.getRequestBatch()
             };
             
-            this.system.context.loader.request(request, function (resources) {
-                var asset = resources[guid];
-                var url = asset.getFileUrl();
-                this.system.context.loader.request(new pc.resources.ModelRequest(url), function (resources) {
-                    var model = resources[url];
-/*                    
-                    if (this.system.context.designer) {
-                        var geometries = model.getGeometries();
-                        for (var i = 0; i < geometries.length; i++) {
-                            geometries[i].generateWireframe();
-                        }
-                    }
-*/                    
-                    this.model = model;
-                }.bind(this), function (errors, resources) {
-                    Object.keys(errors).forEach(function (key) {
-                        logERROR(errors[key]);
-                    });
-                }, function (progress) {
-                }, options);
+            var asset = this.system.context.assets.getAsset(guid);
+            if (!asset) {
+                logERROR(pc.string.format('Trying to load model before asset {0} is loaded.', guid));
+                return;
+            }
+
+            var url = asset.getFileUrl();
+            this.system.context.loader.request(new pc.resources.ModelRequest(url), function (resources) {
+                var model = resources[url];
+
+                if (this.system.context.designer) {
+                    model.generateWireframe();
+                }
+
+                this.model = model;
             }.bind(this), function (errors, resources) {
                 Object.keys(errors).forEach(function (key) {
                     logERROR(errors[key]);
                 });
             }, function (progress) {
-                
+
             }, options);
         },
 
         onSetAsset: function (name, oldValue, newValue) {
-            if(newValue) {
+            if (newValue) {
                 this.loadModelAsset(newValue);
             } else {
                 this.model = null;
@@ -83,13 +77,21 @@ pc.extend(pc.fw, function () {
         },
 
         onSetCastShadows: function (name, oldValue, newValue) {
-            if (newValue !== undefined) {
-                var componentData = this.data;
-                if (componentData.model) {
-                    var meshInstances = componentData.model.meshInstances;
-                    for (var i = 0; i < meshInstances.length; i++) {
-                        meshInstances[i].castShadow = newValue;
-                    }
+            var model = this.data.model;
+            if (model) {
+                var scene = this.system.context.scene;
+                var inScene = scene.containsModel(model);
+                if (inScene) {
+                    scene.removeModel(model);
+                }
+
+                var meshInstances = model.meshInstances;
+                for (var i = 0; i < meshInstances.length; i++) {
+                    meshInstances[i].castShadow = newValue;
+                }
+
+                if (inScene) {
+                    scene.addModel(model);
                 }
             }
         },
@@ -136,6 +138,5 @@ pc.extend(pc.fw, function () {
 
     return {
         ModelComponent: ModelComponent
-    }
+    };
 }());
-

@@ -1,49 +1,28 @@
 pc.extend(pc.fw, function () {
     /**
-     * @private
-     * @name pc.fw.CollisionBoxComponentSystem
-     * @constructor Create a new CollisionBoxComponentSystem
-     * @class 
-     * @param {Object} context
+     * @name pc.fw.CollisionMeshComponentSystem
+     * @constructor Create a new CollisionMeshComponentSystem
+     * @class Manages creation of CollisionMeshComponents
+     * @param {pc.fw.ApplicationContext} context The ApplicationContext for the running application
      * @extends pc.fw.ComponentSystem
      */
-    var CollisionBoxComponentSystem = function CollisionBoxComponentSystem (context) {
-        this.id = "collisionbox";
+    var CollisionMeshComponentSystem = function CollisionMeshComponentSystem (context) {
+        this.id = "collisionmesh";
         context.systems.add(this.id, this);
 
-        this.ComponentType = pc.fw.CollisionBoxComponent;
-        this.DataType = pc.fw.CollisionBoxComponentData;
+        this.ComponentType = pc.fw.CollisionMeshComponent;
+        this.DataType = pc.fw.CollisionMeshComponentData;
 
         this.schema = [{
-            name: "x",
-            displayName: "Size: X",
-            description: "The half-extent of the box in the x-axis",
-            type: "number",
+            name: "asset",
+            displayName: "Asset",
+            description: "Collision mesh asset",
+            type: "asset",
             options: {
-                min: 0,
-                step: 0.1,
+                max: 1,
+                type: 'model'
             },
-            defaultValue: 0.5
-        }, {
-            name: "y",
-            displayName: "Size: Y",
-            description: "The half-extent of the box in the y-axis",
-            type: "number",
-            options: {
-                min: 0,
-                step: 0.1,
-            },
-            defaultValue: 0.5
-        }, {
-            name: "z",
-            displayName: "Size: Z",
-            description: "The half-extent of the box in the z-axis",
-            type: "number",
-            options: {
-                min: 0,
-                step: 0.1,
-            },
-            defaultValue: 0.5
+            defaultValue: null
         }, {
             name: "shape",
             exposed: false
@@ -59,7 +38,7 @@ pc.extend(pc.fw, function () {
         format.addElement(new pc.gfx.VertexElement("vertex_position", 3, pc.gfx.VertexElementType.FLOAT32));
         format.end();
 
-        var vertexBuffer = new pc.gfx.VertexBuffer(format, 8, pc.gfx.VertexBufferUsage.STATIC);
+        var vertexBuffer = new pc.gfx.VertexBuffer(format, 8);
         var positions = new Float32Array(vertexBuffer.lock());
         positions.set([
             -0.5, -0.5, -0.5, -0.5, -0.5, 0.5, 0.5, -0.5, 0.5, 0.5, -0.5, -0.5,
@@ -67,7 +46,7 @@ pc.extend(pc.fw, function () {
         ]);
         vertexBuffer.unlock();
 
-        var indexBuffer = new pc.gfx.IndexBuffer(pc.gfx.IndexFormat.UINT8, 24);
+        var indexBuffer = new pc.gfx.IndexBuffer(pc.gfx.INDEXFORMAT_UINT8, 24);
         var indices = new Uint8Array(indexBuffer.lock());
         indices.set([
             0,1,1,2,2,3,3,0,
@@ -79,7 +58,7 @@ pc.extend(pc.fw, function () {
         this.mesh = new pc.scene.Mesh();
         this.mesh.vertexBuffer = vertexBuffer;
         this.mesh.indexBuffer[0] = indexBuffer;
-        this.mesh.primitive[0].type = pc.gfx.PrimType.LINES;
+        this.mesh.primitive[0].type = pc.gfx.PRIMITIVE_LINES;
         this.mesh.primitive[0].base = 0;
         this.mesh.primitive[0].count = indexBuffer.getNumIndices();
         this.mesh.primitive[0].indexed = true;
@@ -96,41 +75,35 @@ pc.extend(pc.fw, function () {
         pc.fw.ComponentSystem.on('toolsUpdate', this.onToolsUpdate, this);
           
     };
-    CollisionBoxComponentSystem = pc.inherits(CollisionBoxComponentSystem, pc.fw.ComponentSystem);
+    CollisionMeshComponentSystem = pc.inherits(CollisionMeshComponentSystem, pc.fw.ComponentSystem);
     
-    CollisionBoxComponentSystem.prototype = pc.extend(CollisionBoxComponentSystem.prototype, {
+    CollisionMeshComponentSystem.prototype = pc.extend(CollisionMeshComponentSystem.prototype, {
         initializeComponentData: function (component, data, properties) {
-            if (typeof(Ammo) !== 'undefined') {
-                data.shape = new Ammo.btBoxShape(new Ammo.btVector3(data.x, data.y, data.z));
-            }
+            properties = ['asset'];
+            CollisionMeshComponentSystem._super.initializeComponentData.call(this, component, data, properties);
+        },
 
-            data.model = new pc.scene.Model();
-            data.model.graph = new pc.scene.GraphNode();
-            data.model.meshInstances = [ new pc.scene.MeshInstance(data.model.graph, this.mesh, this.material) ];
-            
-            properties = ['x', 'y', 'z', 'shape', 'model'];
+        cloneComponent: function (entity, clone) {
+            var component = this.addComponent(clone, {});
 
-            CollisionBoxComponentSystem._super.initializeComponentData.call(this, component, data, properties);
-
-            if (component.entity.body3d) {
-                component.entity.body3d.createBody();
-            }
+            clone.collisionmesh.data.asset = entity.model.asset;
+            clone.collisionmesh.model = entity.model.model.clone();
         },
         
         onRemove: function (entity, data) {
-            if (entity.body3d && entity.body3d.body) {
-                this.context.systems.body3d.removeBody(entity.body3d.body);
+            if (entity.rigidbody && entity.rigidbody.body) {
+                this.context.systems.rigidbody.removeBody(entity.rigidbody.body);
             }
-
+/*
             if (this.context.scene.containsModel(data.model)) {
                 this.context.root.removeChild(data.model.graph);
                 this.context.scene.removeModel(data.model);
-            }
+            }*/
         },
 
         /**
-        * @private
-        * @name pc.fw.CollisionBoxComponentSystem#setDebugRender
+        * @function
+        * @name pc.fw.CollisionMeshComponentSystem#setDebugRender
         * @description Display collision shape outlines
         * @param {Boolean} value Enable or disable
         */
@@ -140,23 +113,24 @@ pc.extend(pc.fw, function () {
 
         onUpdate: function (dt) {
             if (this.debugRender) {
-                this.updateDebugShapes();
+  //              this.updateDebugShapes();
             }
         },
 
         onToolsUpdate: function (dt) {
-            this.updateDebugShapes();
+//            this.updateDebugShapes();
         },
 
         updateDebugShapes: function () {
+            /*
             var components = this.store;
             for (id in components) {
                 var entity = components[id].entity;
                 var data = components[id].data;
 
-                var x = data.x;
-                var y = data.y;
-                var z = data.z;
+                var x = data.halfExtents[0];
+                var y = data.halfExtents[1];
+                var z = data.halfExtents[2];
                 var model = data.model;
 
                 if (!this.context.scene.containsModel(data.model)) {
@@ -168,11 +142,11 @@ pc.extend(pc.fw, function () {
                 root.setPosition(entity.getPosition());
                 root.setRotation(entity.getRotation());
                 root.setLocalScale(x / 0.5, y / 0.5, z / 0.5);
-            }
+            }*/
         }
     });
 
     return {
-        CollisionBoxComponentSystem: CollisionBoxComponentSystem
+        CollisionMeshComponentSystem: CollisionMeshComponentSystem
     };
 }());

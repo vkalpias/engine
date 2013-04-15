@@ -38,7 +38,8 @@ pc.resources = function () {
         this._loading = [];
         this._pending = [];
         this._batches = [];
-        this._handlers = {};
+        this._handlers = {}; // Store registered handlers
+        this._types = {}; // Store registered types
         this._requests = {};
         this._hashes = {}; // Lookup from file url to file hash
         this._canonicals = {}; // Lookup from hash to canonical file url
@@ -61,14 +62,31 @@ pc.resources = function () {
      * @param {pc.resources.ResourceHandler} handler A ResourceHandler instance.
      */
     ResourceLoader.prototype.registerHandler = function (RequestType, handler) {
-        var request = new RequestType();        
-        if (request.type == "") {
+        var request = new RequestType();
+        if (request.type === "") {
             throw Error("ResourceRequests must have a type");
         }
+        this._types[request.type] = RequestType;
         this._handlers[request.type] = handler;
         handler.setLoader(this);
     };
     
+    /**
+    * @function
+    * @name pc.resources.ResourceLoader#createFileRequest
+    * @description Return a new {@link pc.resources.ResourceRequest} from the types that have been registered.
+    * @param {Object} file A file entry like that from a {@link pc.fw.Asset}
+    * @example
+    * var request = loader.createRequest({
+    *    url: 'assets/12/12341234-1234-1234-123412341234/image.jpg',
+    *    type: 'image'
+    * });
+    * request; // pc.resources.ImageRequest
+    */
+    ResourceLoader.prototype.createFileRequest = function (url, type) {
+        return new this._types[type](url);
+    },
+
     ResourceLoader.prototype.registerHash = function (hash, identifier) {
         if (!this._hashes[identifier]) {
             this._hashes[identifier] = hash;
@@ -89,7 +107,7 @@ pc.resources = function () {
         if (hash) {
             this._cache[hash] = resource;    
         } else {
-            console.log(pc.string.format("Could not add {0} to cache, no hash registered", identifier));
+            logWARNING(pc.string.format("Could not add {0} to cache, no hash registered", identifier));
         }
         
     };
@@ -127,7 +145,7 @@ pc.resources = function () {
      * @param {Number} [priority] Priority of download, lower is higher priority, default = 1
      * @param {Function} [success] Callback called after all requests have been successfully download and processed, it is passed a object containing all the resources keyed by their identitier.
      * @param {Function} [error] Callback called if there are errors while requesting resources. It is passed an object containing error messages keyed by their identifier, and an object containing all the resources which succeeded, keyed by their identifier
-     * @param {Function} [progress] Callback called periodically during the request process to indicate the progress of the entire request. It is passed a percentage complete value 0-100.
+     * @param {Function} [progress] Callback called periodically during the request process to indicate the progress of the entire request. It is passed a percentage complete value 0-1.
      * @param {Object} [options]
      * @param {Number} [options.batch] Handle for parent batch of this request. If the request is made with a parent, then the parent request will not complete until the child one has.
      * @returns {Number} A request handle which can be used to cancel the request.
@@ -152,6 +170,7 @@ pc.resources = function () {
      */
     ResourceLoader.prototype.request = function (requests, priority, success, error, progress, options) {
         var batch = null;
+        var self = this;
         
         // Re-jig arguments if priority has been left out.
         if(typeof(priority) == "function") {
@@ -165,17 +184,17 @@ pc.resources = function () {
         
         // Convert single request into a list
         if (!requests.length) {
-            requests = [requests]
+            requests = [requests];
         }
                 
         // Create a batch for this request
         batch = new RequestBatch(this._batchId++, requests, priority, success, error, function (pcnt) {
             var value = this.getProgress();
-            this.fire('batchprogress', this, batch);
+            self.fire('batchprogress', self, batch);
             if (progress) {
                 progress(value);
             }
-        }.bind(this));
+        });
 
         // If a batch handle is passed in as an option, we use it as a 'parent' to the new batch. 
         // The parent batch won't be complete until all it's children are complete.
@@ -231,7 +250,7 @@ pc.resources = function () {
     ResourceLoader.prototype.open = function (RequestType, data, success, error, progress, options) {
        var request = new RequestType();
        return this._handlers[request.type].open(data, success, error, progress, options);
-    }
+    };
     
     /**
      * @name pc.resources.ResourceLoader#cancel
@@ -247,9 +266,9 @@ pc.resources = function () {
             if (batch.handle == handle) {
                 batch.requests.forEach(function (request, index, arr) {
                     // remove all requests from pending list
-                    var index = this._pending.indexOf(request.identifier)
-                    if(index >= 0) {
-                        this._pending.splice(index, 1);    
+                    var reqIndex = this._pending.indexOf(request.identifier);
+                    if (reqIndex >= 0) {
+                        this._pending.splice(reqIndex, 1);    
                     }
                 }, this);
             }    
@@ -259,7 +278,7 @@ pc.resources = function () {
     ResourceLoader.prototype.getProgress = function () {
         var i, len = this._batches.length;
         var current = 0;
-        var total = 100 * len;
+        var total = len;
 
         for (i = 0; i < len; i++) {
             var batch = this._batches[i];
@@ -267,7 +286,7 @@ pc.resources = function () {
             current = current + batch.getProgress();
         }
 
-        return 100 * current / total;
+        return current / total;
     };
 
     ResourceLoader.prototype.getRequestBatch = function (handle) {
@@ -285,7 +304,7 @@ pc.resources = function () {
         this._pending.sort(function (a,b) {
             var s = this._requests[a].priority - this._requests[b].priority;
             // If the priorities are the same, then sort on sequence order
-            if (s == 0) {
+            if (s === 0) {
                 return this._requests[a].sequence - this._requests[b].sequence;
             } else {
                 return s;    
@@ -312,7 +331,7 @@ pc.resources = function () {
                 var resource = this.getFromCache(request.canonical);
                 if (resource) {
                     // Found resource in cache
-                    console.log(pc.string.format('Found {0} in cache', request.canonical));
+                    logDEBUG(pc.string.format('Found {0} in cache', request.canonical));
                     
                     this._completeRequest(request);
 
@@ -322,6 +341,7 @@ pc.resources = function () {
                     }
                     
                 } else {
+                    logDEBUG(pc.string.format('Cache miss: {0}', request.canonical));
                     // load using handler
                     handler.load(request.canonical, function (response, options) {
                         this._completeRequest(request);
@@ -331,7 +351,7 @@ pc.resources = function () {
                         var i, len = request.batches.length;
                         for (i = 0; i < len; i++) {
                             var resource = handler.open(response, options);
-                            this._afterOpened(request, resource, handler, request.batches[i], options)
+                            this._afterOpened(request, resource, handler, request.batches[i], options);
                         }
                         
                         // Make any new requests
@@ -419,7 +439,8 @@ pc.resources = function () {
         this._batches.splice(this._batches.indexOf(batch), 1);
 
         this.fire('batchcomplete', this, batch);
-    }
+    };
+
     /**
      * @name pc.resources.ResourceHandler
      * @class Abstract base class for ResourceHandler. The resource handler performs the request to fetch the resource from a remote location,
@@ -454,10 +475,10 @@ pc.resources = function () {
         addToCache: function (identifier, resource) {
             var hash = this._loader.getHash(identifier);
             if (hash) {
-                console.log('Added to cache: ' + identifier);
+                logDEBUG('Added to cache: ' + identifier);
                 this._loader.addToCache(hash, resource);
             } else {
-                console.warn(pc.string.format("Could not add resource {0} to cache, no hash stored", identifier));
+                logWARNING(pc.string.format("Could not add resource {0} to cache, no hash stored", identifier));
             }
             
         },
@@ -589,7 +610,7 @@ pc.resources = function () {
      * @description Get a percentage value of how complete the batch is. Includes all child batches
      */
     RequestBatch.prototype.getProgress = function () {
-        return 100 * this._getCount() / this._getTotal();
+        return this._getCount() / this._getTotal();
     };
     
     /**
@@ -642,29 +663,29 @@ pc.resources = function () {
         }
         
         return false;
-    }
+    };
     
     RequestBatch.prototype._getCount = function () {
         var count = this.count;
         var i;
         var length = this.children.length;
         for (i=0;i<length;++i) {
-            count += this.children[i]._getCount()
+            count += this.children[i]._getCount();
         }
         
         return count;
-    }
+    };
     
     RequestBatch.prototype._getTotal = function () {
         var total = this.requests.length;
         var i;
         var length = this.children.length;
-        for (i=0;i<length;++i) {
-            total += this.children[i]._getTotal()
+        for (i = 0; i < length; i++) {
+            total += this.children[i]._getTotal();
         }
-        
+
         return total;
-    }
+    };
     
     /**
      * @name pc.resources.ResourceRequest

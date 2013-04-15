@@ -7,7 +7,7 @@ pc.extend(pc.fw, function () {
      * @extends pc.fw.ComponentSystem
      */
     var ScriptComponentSystem = function ScriptComponentSystem(context) {
-        this.id = "script";
+        this.id = 'script';
         context.systems.add(this.id, this);
         
         this.ComponentType = pc.fw.ScriptComponent;
@@ -37,13 +37,23 @@ pc.extend(pc.fw, function () {
         pc.fw.ComponentSystem.on('fixedUpdate', this.onFixedUpdate, this);
         pc.fw.ComponentSystem.on('postUpdate', this.onPostUpdate, this);
         pc.fw.ComponentSystem.on('toolsUpdate', this.onToolsUpdate, this);
-    }
+    };
     ScriptComponentSystem = pc.inherits(ScriptComponentSystem, pc.fw.ComponentSystem);
 
     pc.extend(ScriptComponentSystem.prototype, {
         initializeComponentData: function (component, data, properties) {
             properties = ['runInTools', 'urls'];
             ScriptComponentSystem._super.initializeComponentData.call(this, component, data, properties);
+        },
+
+        cloneComponent: function (entity, clone) {
+            // overridden to make sure urls list is duplicated
+            var src = this.dataStore[entity.getGuid()];
+            var data = {
+                runInTools: src.data.runInTools,
+                urls: pc.extend([], src.data.urls)
+            };
+            return this.addComponent(clone, data);
         },
 
         /**
@@ -54,7 +64,7 @@ pc.extend(pc.fw, function () {
         * @param {pc.fw.ComponentData} data The data object for the removed component
         */
         onRemove: function (entity, data) {
-            for (name in data.instances) {
+            for (var name in data.instances) {
                 if (data.instances.hasOwnProperty(name)) {
                     
                     // Unbind any instance events that were bound when the script was created
@@ -83,7 +93,7 @@ pc.extend(pc.fw, function () {
             this._registerInstances(root);
                 
             if (root.script) {
-                for (name in root.script.data.instances) {
+                for (var name in root.script.data.instances) {
                     if (root.script.data.instances.hasOwnProperty(name)) {
                         if (root.script.data.instances[name].instance.initialize) {
                             root.script.data.instances[name].instance.initialize();
@@ -232,7 +242,7 @@ pc.extend(pc.fw, function () {
                 
             }
 
-            var children = entity.getChildren()
+            var children = entity.getChildren();
             var i, len = children.length;
             for (i = 0; i < len; i++) {
                 if (children[i] instanceof pc.fw.Entity) {

@@ -206,7 +206,7 @@ pc.extend(pc.scene, function () {
      */
     LightNode.prototype.setAttenuationEnd = function (radius) {
         this._attenuationEnd = radius;
-   }
+    };
 
     /**
      * @function
@@ -218,14 +218,14 @@ pc.extend(pc.scene, function () {
      */
     LightNode.prototype.setAttenuationStart = function (radius) {
         this._attenuationStart = radius;
-    }
+    };
 
     LightNode.prototype._createShadowMap = function () {
         var shadowBuffer = new pc.gfx.FrameBuffer(this._shadowWidth, this._shadowHeight, true);
 
         var shadowTexture = shadowBuffer.getTexture();
-        shadowTexture.minFilter = pc.gfx.FILTER_LINEAR;
-        shadowTexture.maxFilter = pc.gfx.FILTER_LINEAR;
+        shadowTexture.minFilter = pc.gfx.FILTER_NEAREST;
+        shadowTexture.magFilter = pc.gfx.FILTER_NEAREST;
         shadowTexture.addressU = pc.gfx.ADDRESS_CLAMP_TO_EDGE;
         shadowTexture.addressV = pc.gfx.ADDRESS_CLAMP_TO_EDGE;
 
@@ -240,7 +240,7 @@ pc.extend(pc.scene, function () {
 
         // We don't need to clear the color buffer if we're rendering a depth map
         var device = pc.gfx.Device.getCurrent();
-        var flags = (device.extDepthTexture) ? pc.gfx.ClearFlag.DEPTH : pc.gfx.ClearFlag.COLOR | pc.gfx.ClearFlag.DEPTH;
+        var flags = (device.extDepthTexture) ? pc.gfx.CLEARFLAG_DEPTH : pc.gfx.CLEARFLAG_COLOR | pc.gfx.CLEARFLAG_DEPTH;
 
         var shadowCam = new pc.scene.CameraNode();
         shadowCam.setRenderTarget(new pc.gfx.RenderTarget(shadowBuffer));

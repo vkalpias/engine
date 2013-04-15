@@ -1,26 +1,13 @@
-/**
- * @enum {Number}
- * @name pc.gfx.PrimType
- * @description Constants for primitive type.
- */
+// DEPRECATED! See pc.gfx.PRIMITIVE_
 pc.gfx.PrimType = {
-    /** List of distinct points. */
     POINTS: 0,
-    /** Discrete list of line segments. */
     LINES: 1,
-    /** List of points that are linked sequentially by line segments. */
     LINE_STRIP: 2,
-    /** Discrete list of triangles. */
     TRIANGLES: 3,
-    /** Connected strip of triangles where a specified vertex forms a triangle using the previous two. */
     TRIANGLE_STRIP: 4
 };
 
-/**
- * @enum {Number}
- * @name pc.gfx.BlendMode
- * @description Constants for blending modes.
- */
+// DEPRECATED! See pc.gfx.BLENDMODE_
 pc.gfx.BlendMode = {
     ZERO: 0,
     ONE: 1,
@@ -99,7 +86,7 @@ pc.extend(pc.gfx, function () {
         }
 
         // Retrieve the WebGL context
-        this.gl = _createContext(canvas);
+        this.gl = _createContext(canvas, {alpha: false});
 
         if (!this.gl) {
             throw new pc.gfx.ContextCreationError();
@@ -131,7 +118,7 @@ pc.extend(pc.gfx, function () {
         this.defaultClearOptions = {
             color: [0, 0, 0, 1],
             depth: 1,
-            flags: pc.gfx.ClearFlag.COLOR | pc.gfx.ClearFlag.DEPTH
+            flags: pc.gfx.CLEARFLAG_COLOR | pc.gfx.CLEARFLAG_COLOR 
         };
 
         this.lookupPrim = [
@@ -186,6 +173,10 @@ pc.extend(pc.gfx, function () {
         this.extTextureFloat = gl.getExtension("OES_texture_float");
         this.extDepthTexture = null; //gl.getExtension("WEBKIT_WEBGL_depth_texture");
         this.extStandardDerivatives = gl.getExtension("OES_standard_derivatives");
+        if (this.extStandardDerivatives) {
+            gl.hint(this.extStandardDerivatives.FRAGMENT_SHADER_DERIVATIVE_HINT_OES, gl.NICEST);
+        }
+
         this.extTextureFilterAnisotropic = gl.getExtension('EXT_texture_filter_anisotropic');
         if (!this.extTextureFilterAnisotropic) {
             this.extTextureFilterAnisotropic = gl.getExtension('WEBKIT_EXT_texture_filter_anisotropic');
@@ -249,7 +240,6 @@ pc.extend(pc.gfx, function () {
         this.commitFunction[pc.gfx.ShaderInputType.MAT4 ] = function (locationId, value) { self.gl.uniformMatrix4fv(locationId, false, value); };
 
         // Set the default render state
-        var gl = this.gl;
         gl.enable(gl.DEPTH_TEST);
         gl.depthMask(true);
         gl.depthFunc(gl.LEQUAL);
@@ -259,8 +249,8 @@ pc.extend(pc.gfx, function () {
         gl.cullFace(gl.BACK);
         gl.frontFace(gl.CCW);
 
-        gl.enable(gl.BLEND);
-        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+        gl.disable(gl.BLEND);
+        gl.blendFunc(gl.ONE, gl.ZERO);
 
         gl.enable(gl.SCISSOR_TEST);
 
@@ -273,8 +263,8 @@ pc.extend(pc.gfx, function () {
             return {
                 alphaTest: false,
                 alphaRef: 0.0,
-                blend: true,
-                blendModes: { srcBlend: pc.gfx.BlendMode.SRC_ALPHA, dstBlend: pc.gfx.BlendMode.ONE_MINUS_SRC_ALPHA },
+                blend: false,
+                blendModes: { srcBlend: pc.gfx.BLENDMODE_ONE, dstBlend: pc.gfx.BLENDMODE_ZERO },
                 colorWrite: { red: true, green: true, blue: true, alpha: true },
                 cull: true,
                 depthTest: true,
@@ -291,14 +281,14 @@ pc.extend(pc.gfx, function () {
         this._localState = {};
 
         this._stateFuncs = {};
-        this._stateFuncs["alphaTest"] = function (value) {
+        this._stateFuncs.alphaTest = function (value) {
             self._currentState.alphaTest = value;
         };
-        this._stateFuncs["alphaRef"] = function (value) {
+        this._stateFuncs.alphaRef = function (value) {
             self.scope.resolve("alpha_ref").setValue(value);
             self._currentState.alphaRef = value;
         };
-        this._stateFuncs["blend"] = function (value) {
+        this._stateFuncs.blend = function (value) {
             if (self._currentState.blend !== value) {
                 if (value) {
                     self.gl.enable(gl.BLEND);
@@ -308,19 +298,27 @@ pc.extend(pc.gfx, function () {
                 self._currentState.blend = value;
             }
         };
-        this._stateFuncs["blendModes"] = function (value) {
+        this._stateFuncs.blendModes = function (value) {
             if ((self._currentState.blendModes.srcBlend !== value.srcBlend) ||
                 (self._currentState.blendModes.dstBlend !== value.dstBlend)) {
                 self.gl.blendFunc(self.lookup.blendMode[value.srcBlend], self.lookup.blendMode[value.dstBlend]);
                 self._currentState.blendModes.srcBlend = value.srcBlend;
                 self._currentState.blendModes.dstBlend = value.dstBlend;
             }
-        }
-        this._stateFuncs["colorWrite"] = function (value) {
-            self.gl.colorMask(value.red, value.green, value.blue, value.alpha);
-            self._currentState.culling = value;
         };
-        this._stateFuncs["cull"] = function (value) {
+        this._stateFuncs.colorWrite = function (value) {
+            if ((self._currentState.colorWrite.red !== value.red) ||
+                (self._currentState.colorWrite.green !== value.green) || 
+                (self._currentState.colorWrite.blue !== value.blue) || 
+                (self._currentState.colorWrite.alpha !== value.alpha)) {
+                self.gl.colorMask(value.red, value.green, value.blue, value.alpha);
+                self._currentState.colorWrite.red = value.red;
+                self._currentState.colorWrite.green = value.green;
+                self._currentState.colorWrite.blue = value.blue;
+                self._currentState.colorWrite.alpha = value.alpha;
+            }
+        };
+        this._stateFuncs.cull = function (value) {
             if (self._currentState.cull !== value) {
                 if (value) {
                     self.gl.enable(gl.CULL_FACE);
@@ -330,7 +328,7 @@ pc.extend(pc.gfx, function () {
                 self._currentState.cull = value;
             }
         };
-        this._stateFuncs["depthTest"] = function (value) {
+        this._stateFuncs.depthTest = function (value) {
             if (self._currentState.depthTest !== value) {
                 if (value) {
                     self.gl.enable(gl.DEPTH_TEST);
@@ -340,26 +338,26 @@ pc.extend(pc.gfx, function () {
                 self._currentState.depthTest = value;
             }
         };
-        this._stateFuncs["depthWrite"] = function (value) { 
+        this._stateFuncs.depthWrite = function (value) { 
             if (self._currentState.depthWrite !== value) {
                 self.gl.depthMask(value);
                 self._currentState.depthWrite = value;
             }
         };
-        this._stateFuncs["fog"] = function (value) {
+        this._stateFuncs.fog = function (value) {
             self._currentState.fog = value;
         };
-        this._stateFuncs["fogColor"] = function (value) {
+        this._stateFuncs.fogColor = function (value) {
             self.scope.resolve("fog_color").setValue(value);
             self._currentState.fogColor = value;
         };
-        this._stateFuncs["fogDensity"] = function (value) {
+        this._stateFuncs.fogDensity = function (value) {
             if (self._currentState.fogDensity !== value) {
                 self.scope.resolve("fog_density").setValue(value);
                 self._currentState.fogDensity = value;
             }
         };
-        this._stateFuncs["frontFace"] = function (value) {
+        this._stateFuncs.frontFace = function (value) {
             if (self._currentState.frontFace !== value) {
                 self.gl.frontFace(self.lookup.frontFace[value]);
                 self._currentState.frontFace = value;
@@ -391,6 +389,12 @@ pc.extend(pc.gfx, function () {
         pc.extend(this, pc.events);
         
         this.boundBuffer = null;
+
+        this.precalculatedTangents = true;
+
+        this.textureUnits = [];
+
+        this.attributesInvalidated = true;
     };
 
     /**
@@ -454,8 +458,14 @@ pc.extend(pc.gfx, function () {
         updateBegin: function () {
             logASSERT(this.canvas !== null, "Device has not been started");
 
+            this.boundBuffer = null;
+
             // Set the render target
             this.renderTarget.bind();
+
+            for (var i = 0; i < 16; i++) {
+                this.textureUnits[i] = null;
+            }
         },
 
         /**
@@ -474,14 +484,14 @@ pc.extend(pc.gfx, function () {
          * @name pc.gfx.Device#draw
          * @description Submits a graphical primitive to the hardware for immediate rendering.
          * @param {Object} primitive Primitive object describing how to submit current vertex/index buffers defined as follows:
-         * @param {pc.gfx.PrimType} primitive.type The type of primitive to render.
+         * @param {pc.gfx.PRIMITIVE} primitive.type The type of primitive to render.
          * @param {Number} primitive.base The offset of the first index or vertex to dispatch in the draw call.
          * @param {Number} primitive.count The number of indices or vertices to dispatch in the draw call.
          * @param {Boolean} primitive.indexed True to interpret the primitive as indexed, thereby using the currently set index buffer and false otherwise.
          * @example
          * // Render a single, unindexed triangle
          * device.draw({
-         *     type: pc.gfx.PrimType.TRIANGLES,
+         *     type: pc.gfx.PRIMITIVE_TRIANGLES,
          *     base: 0,
          *     count: 3,
          *     indexed: false
@@ -490,7 +500,10 @@ pc.extend(pc.gfx, function () {
          */
         draw: function (primitive) {
             // Commit the vertex buffer inputs
-            this.commitAttributes();
+            if (this.attributesInvalidated) {
+                this.commitAttributes();
+                this.attributesInvalidated = false;
+            }
 
             // Commit the shader program variables
             this.commitSamplers();
@@ -516,7 +529,7 @@ pc.extend(pc.gfx, function () {
          * @param {Object} options Optional options object that controls the behavior of the clear operation defined as follows:
          * @param {Array} options.color The color to clear the color buffer to in the range 0.0 to 1.0 for each component.
          * @param {Number} options.depth The depth value to clear the depth buffer to in the range 0.0 to 1.0.
-         * @param {pc.gfx.ClearFlag} options.flags The buffers to clear (the types being color, depth and stencil).
+         * @param {pc.gfx.CLEARFLAG} options.flags The buffers to clear (the types being color, depth and stencil).
          * @example
          * // Clear color buffer to black and depth buffer to 1.0
          * device.clear();
@@ -524,14 +537,14 @@ pc.extend(pc.gfx, function () {
          * // Clear just the color buffer to red
          * device.clear({
          *     color: [1, 0, 0, 1],
-         *     flags: pc.gfx.ClearFlag.COLOR
+         *     flags: pc.gfx.CLEARFLAG_COLOR 
          * });
          *
          * // Clear color buffer to yellow and depth to 1.0
          * device.clear({
          *     color: [1, 1, 0, 1],
          *     depth: 1.0,
-         *     flags: pc.gfx.ClearFlag.COLOR | pc.gfx.ClearFlag.DEPTH
+         *     flags: pc.gfx.CLEARFLAG_COLOR | pc.gfx.CLEARFLAG_DEPTH
          * });
          * @author Will Eastcott
          */
@@ -674,18 +687,22 @@ pc.extend(pc.gfx, function () {
          * @author Will Eastcott
          */
         setVertexBuffer: function (vertexBuffer, stream) {
-            // Store the vertex buffer for this stream index
-            this.vertexBuffers[stream] = vertexBuffer;
+            if (this.vertexBuffers[stream] !== vertexBuffer) {
+                // Store the vertex buffer for this stream index
+                this.vertexBuffers[stream] = vertexBuffer;
 
-            // Push each vertex element in scope
-            var vertexFormat = vertexBuffer.getFormat();
-            var i = 0;
-            var elements = vertexFormat.elements;
-            var numElements = elements.length;
-            while (i < numElements) {
-                var vertexElement = elements[i++];
-                vertexElement.stream = stream;
-                vertexElement.scopeId.setValue(vertexElement);
+                // Push each vertex element in scope
+                var vertexFormat = vertexBuffer.getFormat();
+                var i = 0;
+                var elements = vertexFormat.elements;
+                var numElements = elements.length;
+                while (i < numElements) {
+                    var vertexElement = elements[i++];
+                    vertexElement.stream = stream;
+                    vertexElement.scopeId.setValue(vertexElement);
+                }
+
+                this.attributesInvalidated = true;
             }
         },
 
@@ -702,11 +719,13 @@ pc.extend(pc.gfx, function () {
                 // Set the active shader program
                 var gl = this.gl;
                 gl.useProgram(program.programId);
+
+                this.attributesInvalidated = true;
             }
         },
 
         /**
-         * @function
+         * @private
          * @name pc.gfx.Device#commitAttributes
          * @author Will Eastcott
          */
@@ -745,29 +764,32 @@ pc.extend(pc.gfx, function () {
         },
 
         /**
-         * @function
+         * @private
          * @name pc.gfx.Device#commitSamplers
          * @author Will Eastcott
          */
-        // Handle textures differently, as it's probably safer
-        // to always set them rather than try to track which
-        // one is currently set!
         commitSamplers: function () {
-            var i, len, sampler, textureUnit = 0;
-            var samplers = this.program.samplers;
             var gl = this.gl;
+            var i, len, sampler, value;
+            var samplers = this.program.samplers;
 
             for (i = 0, len = samplers.length; i < len; i++) {
                 sampler = samplers[i];
-
-                gl.activeTexture(gl.TEXTURE0 + textureUnit);
-                sampler.scopeId.value.bind();
-                gl.uniform1i(sampler.locationId, textureUnit++);
+                texture = sampler.scopeId.value;
+                if (this.textureUnits[i] !== texture) {
+                    gl.activeTexture(gl.TEXTURE0 + i);
+                    texture.bind();
+                    this.textureUnits[i] = texture;
+                }
+                if (sampler.slot !== i) {
+                    gl.uniform1i(sampler.locationId, i);
+                    sampler.slot = i;
+                }
             }
         },
 
         /**
-         * @function
+         * @private
          * @name pc.gfx.Device#commitUniforms
          * @author Will Eastcott
          */

@@ -1,23 +1,27 @@
-
 /**
  * @name pc.scene
  * @namespace High level Graphics API
  */
 pc.scene = {
+    BLEND_SUBTRACTIVE: 0,
+    BLEND_ADDITIVE: 1,
+    BLEND_NORMAL: 2,
+    BLEND_NONE: 3,
+
     RENDERSTYLE_SOLID: 0,
     RENDERSTYLE_WIREFRAME: 1,
     RENDERSTYLE_POINTS: 2,
 
     LAYER_HUD: 0,
-    LAYER_FX: 1,
-    LAYER_WORLD: 2,
-    LAYER_SKYBOX: 3
+    LAYER_GIZMO: 1,
+    LAYER_FX: 2,
+    LAYER_WORLD: 3
 };
 
 pc.extend(pc.scene, function () {
 
-    function sortByMaterial(instanceA, instanceB) {
-        return instanceB.key - instanceA.key;
+    function sortDrawCalls(drawCallA, drawCallB) {
+        return drawCallB.key - drawCallA.key;
     }
 
     // Global shadowmap resources
@@ -101,8 +105,9 @@ pc.extend(pc.scene, function () {
      * @class A scene.
      */
     var Scene = function Scene() {
-        this.meshInstances = [];
-        this.shadowCasters = [];
+        this.drawCalls = [];     // All mesh instances and commands
+        this.meshInstances = []; // All mesh instances
+        this.shadowCasters = []; // All mesh instances that cast shadows
 
         var device = pc.gfx.Device.getCurrent();
         this.modelMatrixId = device.scope.resolve('matrix_model');
@@ -120,10 +125,20 @@ pc.extend(pc.scene, function () {
         // Shadows
         var library = device.getProgramLibrary();
         this._depthProgStatic = library.getProgram('depth', {
-            skin: false
+            skin: false,
+            opacityMap: false
         });
         this._depthProgSkin = library.getProgram('depth', {
-            skin: true
+            skin: true,
+            opacityMap: false
+        });
+        this._depthProgStaticOp = library.getProgram('depth', {
+            skin: false,
+            opacityMap: true
+        });
+        this._depthProgSkinOp = library.getProgram('depth', {
+            skin: true,
+            opacityMap: true
         });
         this._shadowState = {
             blend: false
@@ -137,6 +152,8 @@ pc.extend(pc.scene, function () {
     };
 
     Scene.prototype.addModel = function (model) {
+        var i;
+
         // Check the model is not already in the scene
         var index = this._models.indexOf(model);
         if (index === -1) {
@@ -144,8 +161,12 @@ pc.extend(pc.scene, function () {
 
             // Insert the model's mesh instances into lists ready for rendering
             var meshInstance;
-            for (var i = 0; i < model.meshInstances.length; i++) {
+            var numMeshInstances = model.meshInstances.length;
+            for (i = 0; i < numMeshInstances; i++) {
                 meshInstance = model.meshInstances[i];
+                if (this.drawCalls.indexOf(meshInstance) === -1) {
+                    this.drawCalls.push(meshInstance);
+                }
                 if (this.meshInstances.indexOf(meshInstance) === -1) {
                     this.meshInstances.push(meshInstance);
                 }
@@ -158,13 +179,15 @@ pc.extend(pc.scene, function () {
 
             // Add all model lights to the scene
             var lights = model.getLights();
-            for (var i = 0, len = lights.length; i < len; i++) {
+            for (i = 0, len = lights.length; i < len; i++) {
                 this.addLight(lights[i]);
             }
         }
     };
 
     Scene.prototype.removeModel = function (model) {
+        var i;
+
         // Verify the model is in the scene
         var index = this._models.indexOf(model);
         if (index !== -1) {
@@ -172,8 +195,13 @@ pc.extend(pc.scene, function () {
 
             // Remove the model's mesh instances from render queues
             var meshInstance;
-            for (var i = 0; i < model.meshInstances.length; i++) {
+            var numMeshInstances = model.meshInstances.length;
+            for (i = 0; i < numMeshInstances; i++) {
                 meshInstance = model.meshInstances[i];
+                index = this.drawCalls.indexOf(meshInstance);
+                if (index !== -1) {
+                    this.drawCalls.splice(index, 1);
+                }
                 index = this.meshInstances.indexOf(meshInstance);
                 if (index !== -1) {
                     this.meshInstances.splice(index, 1);
@@ -188,7 +216,7 @@ pc.extend(pc.scene, function () {
 
             // Remove all model lights from the scene
             var lights = model.getLights();
-            for (var i = 0, len = lights.length; i < len; i++) {
+            for (i = 0, len = lights.length; i < len; i++) {
                 this.removeLight(lights[i]);
             }
         }
@@ -215,11 +243,11 @@ pc.extend(pc.scene, function () {
      * @description Synchronizes the graph node hierarchy of every model in the scene.
      * @author Will Eastcott
      */
-	Scene.prototype.update = function () {
-	    for (var i = 0, len = this._models.length; i < len; i++) {
-	        this._models[i].getGraph().syncHierarchy();
-	    }
-	};
+    Scene.prototype.update = function () {
+        for (var i = 0, len = this._models.length; i < len; i++) {
+            this._models[i].getGraph().syncHierarchy();
+        }
+    };
 
     Scene.prototype.render = function (camera) {
 
@@ -230,8 +258,9 @@ pc.extend(pc.scene, function () {
         this._localLights[1].length = 0;
         var castShadows = false;
         var lights = this._lights;
+        var light;
         for (i = 0, len = lights.length; i < len; i++) {
-            var light = lights[i];
+            light = lights[i];
             if (light.getCastShadows()) {
                 castShadows = true;
             }
@@ -250,7 +279,7 @@ pc.extend(pc.scene, function () {
 
         var i, j, numInstances;
         var device = pc.gfx.Device.getCurrent();
-        var meshInstance, mesh, material, prevMaterial = null, style;
+        var drawCall, meshInstance, mesh, material, prevMaterial = null, style;
 
         // Update all skin matrix palettes
         for (i = this._models.length - 1; i >= 0; i--) {
@@ -264,7 +293,7 @@ pc.extend(pc.scene, function () {
 
         // Render all shadowmaps
         for (i = 0; i < lights.length; i++) {
-            var light = lights[i];
+            light = lights[i];
             var type = light.getType();
 
             if (type === pc.scene.LightType.POINT) {
@@ -315,15 +344,32 @@ pc.extend(pc.scene, function () {
                         if (p[2] < minz) minz = p[2];
                         if (p[2] > maxz) maxz = p[2];
                     }
+/*
+                    var worldUnitsPerTexelX = (maxx - minx) / light._shadowWidth;
+                    var worldUnitsPerTexelY = (maxy - miny) / light._shadowHeight;
 
+                    minx /= worldUnitsPerTexelX;
+                    minx = Math.floor(minx);
+                    minx *= worldUnitsPerTexelX;
+                    maxx /= worldUnitsPerTexelX;
+                    maxx = Math.floor(maxx);
+                    maxx *= worldUnitsPerTexelX;
+
+                    miny /= worldUnitsPerTexelY;
+                    miny = Math.floor(miny);
+                    miny *= worldUnitsPerTexelY;
+                    maxy /= worldUnitsPerTexelY;
+                    maxy = Math.floor(maxy);
+                    maxy *= worldUnitsPerTexelY;
+*/
                     // 5. Use your min and max values to create an off-center orthographic projection.
-                    shadowCam.translateLocal(-(maxx + minx) * 0.5, (maxy + miny) * 0.5, maxz);
+                    shadowCam.translateLocal(-(maxx + minx) * 0.5, (maxy + miny) * 0.5, maxz + (maxz - minz) * 0.25);
                     pc.math.mat4.copy(shadowCam.getWorldTransform(), shadowCamWtm);
 
                     shadowCam.setProjection(pc.scene.Projection.ORTHOGRAPHIC);
                     shadowCam.setNearClip(0);
-                    shadowCam.setFarClip(maxz - minz);
-                    shadowCam.setAspectRatio(1);
+                    shadowCam.setFarClip((maxz - minz) * 1.5);
+                    shadowCam.setAspectRatio((maxx - minx) / (maxy - miny));
                     shadowCam.setOrthoHeight((maxy - miny) * 0.5);
                 } else if (type === pc.scene.LightType.SPOT) {
                     shadowCam.setProjection(pc.scene.Projection.PERSPECTIVE);
@@ -357,11 +403,14 @@ pc.extend(pc.scene, function () {
                     material = meshInstance.material;
 
                     this.modelMatrixId.setValue(meshInstance.node.worldTransform);
+                    if (material.opacityMap) {
+                        device.scope.resolve('texture_opacityMap').setValue(material.opacityMap);
+                    }
                     if (meshInstance.skinInstance) {
                         this.poseMatrixId.setValue(meshInstance.skinInstance.matrixPaletteF32);
-                        device.setProgram(this._depthProgSkin);
+                        device.setProgram(material.opacityMap ? this._depthProgSkinOp : this._depthProgSkin);
                     } else {
-                        device.setProgram(this._depthProgStatic);
+                        device.setProgram(material.opacityMap ? this._depthProgStaticOp : this._depthProgStatic);
                     }
 
                     style = meshInstance.renderStyle;
@@ -382,37 +431,44 @@ pc.extend(pc.scene, function () {
         }
 
         // Sort meshes into the correct render order
-        this.meshInstances.sort(sortByMaterial);
+        this.drawCalls.sort(sortDrawCalls);
 
         camera.frameBegin();
 
         this.dispatchGlobalLights();
         this.dispatchLocalLights();
 
-        for (i = 0, numInstances = this.meshInstances.length; i < numInstances; i++) {
-            meshInstance = this.meshInstances[i];
-            mesh = meshInstance.mesh;
-            material = meshInstance.material;
+        for (i = 0, numDrawCalls = this.drawCalls.length; i < numDrawCalls; i++) {
+            drawCall = this.drawCalls[i];
+            if (drawCall.command) {
+                // We have a command
+                drawCall.command();
+            } else {
+                // We have a mesh instance
+                meshInstance = drawCall;
+                mesh = meshInstance.mesh;
+                material = meshInstance.material;
 
-            this.modelMatrixId.setValue(meshInstance.node.worldTransform);
-            if (meshInstance.skinInstance) {
-                this.poseMatrixId.setValue(meshInstance.skinInstance.matrixPaletteF32);
+                this.modelMatrixId.setValue(meshInstance.node.worldTransform);
+                if (meshInstance.skinInstance) {
+                    this.poseMatrixId.setValue(meshInstance.skinInstance.matrixPaletteF32);
+                }
+
+                if (material !== prevMaterial) {
+                    device.setProgram(material.getProgram(mesh));
+                    material.setParameters();
+                    device.clearLocalState();
+                    device.updateLocalState(material.getState());
+                }
+
+                style = meshInstance.renderStyle;
+
+                device.setVertexBuffer(mesh.vertexBuffer, 0);
+                device.setIndexBuffer(mesh.indexBuffer[style]);
+                device.draw(mesh.primitive[style]);
+
+                prevMaterial = material;
             }
-
-            if (material !== prevMaterial) {
-                device.setProgram(material.getProgram(mesh));
-                material.setParameters();
-                device.clearLocalState();
-                device.updateLocalState(material.getState());
-            }
-
-            style = meshInstance.renderStyle;
-
-            device.setVertexBuffer(mesh.vertexBuffer, 0);
-            device.setIndexBuffer(mesh.indexBuffer[style]);
-            device.draw(mesh.primitive[style]);
-
-            prevMaterial = material;
         }
 
         device.clearLocalState();
@@ -423,9 +479,9 @@ pc.extend(pc.scene, function () {
 
 /*
         var camMat = camera.getWorldTransform();
-	
-	    // Sort alpha meshes back to front
-	    var sortBackToFront = function (meshA, meshB) {
+
+        // Sort alpha meshes back to front
+        var sortBackToFront = function (meshA, meshB) {
             var posA = meshA.getAabb().center;
             var posB = meshB.getAabb().center;
             var cmx = camMat[12];
@@ -441,9 +497,9 @@ pc.extend(pc.scene, function () {
             var distSqrB = tempx * tempx + tempy * tempy + tempz * tempz;
 
             return distSqrA < distSqrB;
-	    }
-	    alphaMeshes.sort(sortBackToFront);
-	    opaqueMeshes.sort(sortBackToFront);
+        }
+        alphaMeshes.sort(sortBackToFront);
+        opaqueMeshes.sort(sortBackToFront);
 */
 
     /**

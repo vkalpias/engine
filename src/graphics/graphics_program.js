@@ -4,8 +4,8 @@ pc.extend(pc.gfx, function () {
     /**
      * @name pc.gfx.Program
      * @class A program representing a compiled and linked vertex and fragment shader pair.
-     * @param {pc.gfx.Shader} vertexShader
-     * @param {pc.gfx.Shader} fragmentShader
+     * @param {pc.gfx.Shader} vertexShader The vertex shader to be linked into the new program.
+     * @param {pc.gfx.Shader} fragmentShader The fragment shader to be linked into the new program.
      */
     var Program = function (vertexShader, fragmentShader) {
         this.id = id++;
@@ -15,7 +15,8 @@ pc.extend(pc.gfx, function () {
         this.uniforms   = [];
         
         // Create the WebGL program ID
-        var gl = pc.gfx.Device.getCurrent().gl;
+        this.gl = pc.gfx.Device.getCurrent().gl;
+        var gl = this.gl;
 
         var _typeToString = {};
         _typeToString[gl.BOOL]         = "bool";
@@ -70,32 +71,43 @@ pc.extend(pc.gfx, function () {
 
         // Query the program for each vertex buffer input (GLSL 'attribute')
         var i = 0;
+        var info, locationId;
+
         var numAttributes = gl.getProgramParameter(this.programId, gl.ACTIVE_ATTRIBUTES);
         while (i < numAttributes) {
-            var info = gl.getActiveAttrib(this.programId, i++);
-            var locationId = gl.getAttribLocation(this.programId, info.name);
+            info = gl.getActiveAttrib(this.programId, i++);
+            locationId = gl.getAttribLocation(this.programId, info.name);
             this.attributes.push(new pc.gfx.ShaderInput(info.name, _typeToPc[info.type], locationId));
-
-//            logDEBUG("Added shader attribute: " + _typeToString[info.type] + " " + info.name);
         }
 
         // Query the program for each shader state (GLSL 'uniform')
         i = 0;
         var numUniforms = gl.getProgramParameter(this.programId, gl.ACTIVE_UNIFORMS);
         while (i < numUniforms) {
-            var info = gl.getActiveUniform(this.programId, i++);
-            var locationId = gl.getUniformLocation(this.programId, info.name);
+            info = gl.getActiveUniform(this.programId, i++);
+            locationId = gl.getUniformLocation(this.programId, info.name);
             if ((info.type === gl.SAMPLER_2D) || (info.type === gl.SAMPLER_CUBE)) {
                 this.samplers.push(new pc.gfx.ShaderInput(info.name, _typeToPc[info.type], locationId));
             } else {
                 this.uniforms.push(new pc.gfx.ShaderInput(info.name, _typeToPc[info.type], locationId));
             }
-
-//            logDEBUG("Added shader uniform: " + _typeToString[info.type] + " " + info.name);
         }
-    }
+    };
+
+    Program.prototype = {
+        /**
+         * @function
+         * @name pc.gfx.Program#destroy
+         * @description Frees resources associated with this program.
+         * @author Will Eastcott
+         */
+        destroy: function () {
+            var gl = this.gl;
+            gl.deleteProgram(this.programId);
+        }
+    };
 
     return {
         Program: Program
-    }; 
+    };
 }());

@@ -7,7 +7,7 @@ pc.extend(pc.fw, function () {
      * @extends pc.fw.ComponentSystem
      */
     var AudioSourceComponentSystem = function (context, manager) {
-        this.id = "audiosource"
+        this.id = "audiosource";
         context.systems.add(this.id, this);
     
         this.ComponentType = pc.fw.AudioSourceComponent;
@@ -79,9 +79,6 @@ pc.extend(pc.fw, function () {
                 min: 0
             }
         }, {
-            name: "paused",
-            exposed: false
-        }, {
             name: "sources",
             exposed: false,
             readOnly: true
@@ -99,7 +96,6 @@ pc.extend(pc.fw, function () {
         
         this.manager = manager;
         
-        //this.on('remove', this.onRemove, this);
         pc.fw.ComponentSystem.on('initialize', this.onInitialize, this);
         pc.fw.ComponentSystem.on('update', this.onUpdate, this);
     };
@@ -110,7 +106,7 @@ pc.extend(pc.fw, function () {
             properties = ['assets', 'volume', 'loop', 'activate', '3d', 'minDistance', 'maxDistance', 'rollOffFactor'];
             AudioSourceComponentSystem._super.initializeComponentData.call(this, component, data, properties);
         
-            component.paused = !data['activate'];
+            component.paused = !data.activate;
         },
 
         onInitialize: function(root) {
@@ -144,6 +140,16 @@ pc.extend(pc.fw, function () {
                     }
                 }
             }
+        },
+
+        /**
+         * @name pc.fw.AudioSourceComponentSystem#setVolume()
+         * @function
+         * @description Set the volume for the entire AudioSource system. All sources will have their volume multiplied by this value
+         * @param {Number} value The value to set the volume to. Valid from 0.0 - 1.0
+         */
+        setVolume: function (volume) {
+            this.manager.setVolume(volume);
         }
     });
     
