@@ -85,6 +85,7 @@ function decompressAlphaDxt3(rgba, block ) {
 }
 
 function decompressAlphaDxt5(rgba, block) {
+    /*
     // get the two alpha values
     var bytes = block;
     var alpha0 = bytes[0];
@@ -128,6 +129,7 @@ function decompressAlphaDxt5(rgba, block) {
     // write out the indexed codebook values
     for (var i = 0; i < 16; ++i)
         rgba[4*i + 3] = codes[indices[i]];
+    */
 }
 
 function decompress(rgba, blocks, blockIndex, format) {
@@ -257,21 +259,24 @@ function loadLevels(texture, ddsData) {
 
     var w = header[off_width];
     var h = header[off_height];
+    var numMips = header[off_mipmapCount];
 
-    texture.autoMipmap = false;
-    texture._format = pc.gfx.PIXELFORMAT_DXT1;
-    var ext = pc.gfx.Device.getCurrent().extCompressedTextureS3TC;
-    texture._glFormat = gl.RGB;
-    texture._glInternalFormat = ext.COMPRESSED_RGB_S3TC_DXT1_EXT;
-    texture._compressed = true;
     texture._width = w;
     texture._height = h;
 
-    var pixels = texture.lock();
-
     var dataOffset = header[off_size] + 4;
-    var blocks = new Uint8Array(ddsData, dataOffset, pixels.length);
-    pixels.set(blocks);
 
-    texture.unlock();
+    for (var i = 0; i < numMips; i++) {
+        var pixels = texture.lock({ 
+            level: i,
+            mode: pc.gfx.TEXTURELOCK_WRITE 
+        });
+
+        var blocks = new Uint8Array(ddsData, dataOffset, pixels.length);
+        pixels.set(blocks);
+
+        texture.unlock();
+
+        dataOffset += pixels.length;
+    }
 }

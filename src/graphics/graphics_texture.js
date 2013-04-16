@@ -33,7 +33,6 @@ pc.extend(pc.gfx, function () {
 
         // PUBLIC
         this.name = null;
-        this.autoMipmap = true;
 
         // PRIVATE
         var device = pc.gfx.Device.getCurrent();
@@ -121,6 +120,7 @@ pc.extend(pc.gfx, function () {
         // Mip levels
         this._levels = cubemap ? [[ null, null, null, null, null, null ]] : [ null ];
         this._lockedLevel = -1;
+        this.autoMipmap = autoMipmap;
 
         this.upload();
     };
@@ -259,32 +259,44 @@ pc.extend(pc.gfx, function () {
 
             this._lockedLevel = options.level;
 
-            if (this._levels[options.level] === null) {
+            var w = this._width;
+            var h = this._height;
+
+            var n = options.level;
+            while (n > 0) {
+                if (w > 1)
+                    w = w >> 1;
+                if (h > 1)
+                    h = h >> 1;
+                n--;
+            }
+
+            if (!this._levels[options.level]) {
                 switch(this._format) {
                     case pc.gfx.PIXELFORMAT_A8:
                     case pc.gfx.PIXELFORMAT_L8:
-                        this._levels[options.level] = new Uint8Array(this._width * this._height);
+                        this._levels[options.level] = new Uint8Array(w * h);
                         break;
                     case pc.gfx.PIXELFORMAT_L8_A8:
-                        this._levels[options.level] = new Uint8Array(this._width * this._height * 2);
+                        this._levels[options.level] = new Uint8Array(w * h * 2);
                         break;
                     case pc.gfx.PIXELFORMAT_R5_G6_B5:
                     case pc.gfx.PIXELFORMAT_R5_G5_B5_A1:
                     case pc.gfx.PIXELFORMAT_R4_G4_B4_A4:
-                        this._levels[options.level] = new Uint16Array(this._width * this._height);
+                        this._levels[options.level] = new Uint16Array(w * h);
                         break;
                     case pc.gfx.PIXELFORMAT_R8_G8_B8:
-                        this._levels[options.level] = new Uint8Array(this._width * this._height * 3);
+                        this._levels[options.level] = new Uint8Array(w * h * 3);
                         break;
                     case pc.gfx.PIXELFORMAT_R8_G8_B8_A8:
-                        this._levels[options.level] = new Uint8Array(this._width * this._height * 4);
+                        this._levels[options.level] = new Uint8Array(w * h * 4);
                         break;
                     case pc.gfx.PIXELFORMAT_DXT1:
-                        this._levels[options.level] = new Uint8Array(Math.floor((this._width + 3) / 4) * Math.floor((this._height + 3) / 4) * 8);
+                        this._levels[options.level] = new Uint8Array(Math.floor((w + 3) / 4) * Math.floor((h + 3) / 4) * 8);
                         break;
                     case pc.gfx.PIXELFORMAT_DXT3:
                     case pc.gfx.PIXELFORMAT_DXT5:
-                        this._levels[options.level] = new Uint8Array(Math.floor((this._width + 3) / 4) * Math.floor((this._height + 3) / 4) * 16);
+                        this._levels[options.level] = new Uint8Array(Math.floor((w + 3) / 4) * Math.floor((h + 3) / 4) * 16);
                         break;
                 }
             }

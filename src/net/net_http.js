@@ -33,6 +33,7 @@ pc.extend(pc.net, function () {
     };
     
     Http.binaryExtensions = [
+        '.crn',
         '.dds',
         '.model',
         '.wav',
