@@ -464,7 +464,7 @@ pc.extend(pc.gfx, function () {
                 } else {
                     // Upload the byte array
                     if (this._compressed) {
-                        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+                        // compressedTexImage2D ignores UNPACK_FLIP_Y_WEBGL (only affects texImage2D)
                         gl.compressedTexImage2D(gl.TEXTURE_2D, 0, this._glInternalFormat, this._width, this._height, 0, pixels);
                     } else {
                         gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
