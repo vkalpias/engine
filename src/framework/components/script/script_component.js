@@ -23,8 +23,8 @@ pc.extend(pc.fw, function () {
          * @param {String} functionName The name of the function to call on the script
          * @returns The result of the function call
          * @example
-         * // Call doDamage(10) on the script object called 'enemy' attached to entityEntity.
-         * entityEntity.script.send('enemy', 'doDamage', 10);
+         * // Call doDamage(10) on the script object called 'enemy' attached to entity.
+         * entity.script.send('enemy', 'doDamage', 10);
          */
         send: function (name, functionName) {
             var args = pc.makeArray(arguments).slice(2);
@@ -43,16 +43,16 @@ pc.extend(pc.fw, function () {
         onSetUrls: function(name, oldValue, newValue) {
             var urls = newValue;
 
-            var options = {
-                batch: this.entity.getRequestBatch()
-            };
-            
             if (!this.system._inTools || this.runInTools) {
                 // Load and register new scripts and instances
                 urls.forEach(function (url, index, arr) {
                     var url = urls[index].trim();
-                    this.system.context.loader.request(new pc.resources.ScriptRequest(url), function (resources) {
-                        var ScriptType = resources[url];
+                    var options = {
+                        parent: this.entity.getRequest()
+                    };
+                    var promise = this.system.context.loader.request(new pc.resources.ScriptRequest(url), options); 
+                    promise.then(function (resources) {
+                        var ScriptType = resources[0];
 
                         // ScriptType may be null if the script component is loading an ordinary javascript lib rather than a PlayCanvas script
                         if (ScriptType) {
@@ -61,17 +61,11 @@ pc.extend(pc.fw, function () {
                             
                             // If there is no request batch, then this is not part of a load request and so we need 
                             // to register the instances immediately to call the initialize function
-                            if (!options.batch) {
+                            if (!options.parent) {
                                 this.system.onInitialize(this.entity);
-                            }                        
+                            }
                         }
-                    }.bind(this), function (errors) {
-                        Object.keys(errors).forEach(function (key) {
-                            logERROR(errors[key]);
-                        });
-                    }, function (progress) {
-                        
-                    }, options);
+                    }.bind(this));
                 }, this);            
             }
         }
