@@ -188,7 +188,68 @@ function decompressImage(rgba, width, height, blocks, format) {
     }
 }
 
-function loadLevels(texture, ddsData) {
+function readHeader(data, offset) {
+    /*
+    typedef struct {
+        DWORD           dwSize;
+        DWORD           dwFlags;
+        DWORD           dwHeight;
+        DWORD           dwWidth;
+        DWORD           dwPitchOrLinearSize;
+        DWORD           dwDepth;
+        DWORD           dwMipMapCount;
+        DWORD           dwReserved1[11];
+        DDS_PIXELFORMAT ddspf;
+        DWORD           dwCaps;
+        DWORD           dwCaps2;
+        DWORD           dwCaps3;
+        DWORD           dwCaps4;
+        DWORD           dwReserved2;
+    } DDS_HEADER;
+
+    struct DDS_PIXELFORMAT {
+        DWORD dwSize;
+        DWORD dwFlags;
+        DWORD dwFourCC;
+        DWORD dwRGBBitCount;
+        DWORD dwRBitMask;
+        DWORD dwGBitMask;
+        DWORD dwBBitMask;
+        DWORD dwABitMask;
+    };
+    */
+
+    var headerSize = 31; // The header length in 32-bit DWORDs
+    var dw = new Uint32Array(data, offset, headerSize);
+
+    var header = {
+        dwSize: dw[0],
+        dwFlags: dw[1],
+        dwHeight: dw[2],
+        dwWidth: dw[3],
+        dwPitchOrLinearSize: dw[4],
+        dwDepth: dw[5],
+        dwMipMapCount: dw[6],
+        dwReserved1: [ dw[7], dw[8], dw[9], dw[10], dw[11], dw[12], dw[13], dw[14], dw[15], dw[16], dw[17] ],
+        ddspf: {
+            dwSize: dw[18],
+            dwFlags: dw[19],
+            dwFourCC: dw[20],
+            dwRGBBitCount: dw[21],
+            dwRBitMask: dw[22],
+            dwGBitMask: dw[23],
+            dwBBitMask: dw[24],
+            dwABitMask: dw[25]
+        },
+        dwCaps: dw[26],
+        dwCaps2: dw[27],
+        dwCaps3: dw[28],
+        dwCaps4: dw[29],
+        dwReserved2: dw[30]
+    }
+}
+
+function loadDDS(ddsData) {
     var DDS_MAGIC = 0x20534444;
 
     var DDSD_CAPS = 0x1,
@@ -240,33 +301,40 @@ function loadLevels(texture, ddsData) {
     var FOURCC_DXT3 = fourCCToInt32("DXT3");
     var FOURCC_DXT5 = fourCCToInt32("DXT5");
 
-    var headerLengthInt = 31; // The header length in 32 bit ints
+    var header = readHeader(ddsData, 4);
+    var width = header.dwWidth;
+    var height = header.dwHeight;
+    var format = pc.gfx.PIXELFORMAT_DXT1;
 
-    // Offsets into the header array
-    var off_magic = 0;
+    var numLevels = 1;
+    if (header.dwFlags & this.DDSD_MIPMAPCOUNT)
+    {
+        numLevels = header.dwMipMapCount;
+    }
 
-    var off_size = 1;
-    var off_flags = 2;
-    var off_height = 3;
-    var off_width = 4;
+    if (header.ddspf.dwFlags & DDPF_FOURCC) {
+        switch (header.ddspf.dwFourCC) {
+            case FOURCC_DXT1:
+                format = pc.gfx.PIXELFORMAT_DXT1;
+                break;
+            case FOURCC_DXT2:
+            case FOURCC_DXT3:
+                format = pc.gfx.PIXELFORMAT_DXT3;
+                break;
+            case FOURCC_DXT5:
+                format = pc.gfx.PIXELFORMAT_DXT5;
+                break;
+        }
+    }
 
-    var off_mipmapCount = 7;
+    var texture = new pc.gfx.Texture({
+        width: width,
+        height: height,
+        format: format
+    })
 
-    var off_pfFlags = 20;
-    var off_pfFourCC = 21;
-
-    var header = new Int32Array(ddsData, 0, headerLengthInt);
-
-    var w = header[off_width];
-    var h = header[off_height];
-    var numMips = header[off_mipmapCount];
-
-    texture._width = w;
-    texture._height = h;
-
-    var dataOffset = header[off_size] + 4;
-
-    for (var i = 0; i < numMips; i++) {
+    var dataOffset = header.dwSize + 4;
+    for (var i = 0; i < numLevels; i++) {
         var pixels = texture.lock({ 
             level: i,
             mode: pc.gfx.TEXTURELOCK_WRITE 
@@ -279,4 +347,6 @@ function loadLevels(texture, ddsData) {
 
         dataOffset += pixels.length;
     }
+
+    return texture;
 }

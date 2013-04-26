@@ -473,7 +473,7 @@ pc.extend(pc.gfx, function () {
                 }
             }
 
-            if (this.autoMipmap && pc.math.powerOfTwo(this._width) && pc.math.powerOfTwo(this._height) && this._levels.length === 1) {
+            if (!this._compressed && this.autoMipmap && pc.math.powerOfTwo(this._width) && pc.math.powerOfTwo(this._height) && this._levels.length === 1) {
                 gl.generateMipmap(this._glTarget);
             }
         }

@@ -220,7 +220,7 @@ pc.extend(pc.resources, function () {
      */
     ModelResourceHandler.prototype._loadTexture = function (model, modelData, textureData, options) {
         var url = options.directory + "/" + textureData.uri;
-        
+
         var texture = null;
         if (this._textureCache) {
             texture = this._textureCache.getTexture(url);
@@ -536,10 +536,26 @@ pc.extend(pc.resources, function () {
     * @param {Object} json The data
     */
     ModelResourceHandler.prototype._loadModelJson = function (data, options) {
+        var i;
+
+        var request = [];
+        for (i = 0; i < data.model.textures.length; i++) {
+            var url = options.directory + '/' + data.model.textures[i].uri;
+            request.push(new pc.resources.TextureRequest(url));
+        }
+        loader.request(request, function (resources) {
+            for (i = 0; i < data.model.textures.length; i++) {
+                texture = resources[url];
+                texture.minFilter = pc.gfx.FILTER_LINEAR;
+                texture.magFilter = pc.gfx.FILTER_LINEAR;
+                texture.addressU = pc.gfx.ADDRESS_CLAMP_TO_EDGE;
+                texture.addressV = pc.gfx.ADDRESS_CLAMP_TO_EDGE;
+            }
+        });
+
         var modelData = data.model;
 
         var model = new pc.scene.Model();
-        var i;
 
         // Load in the shared resources of the model (textures, materials and geometries)
         if (modelData.textures) {
