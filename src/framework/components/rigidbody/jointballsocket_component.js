@@ -18,16 +18,9 @@ pc.extend(pc.fw, function () {
     pc.extend(JointBallSocketComponent.prototype, {
 
         onSetPivotA: function (name, oldValue, newValue) {
-            if (this.entity.rigidbody) {
-                if (typeof(Ammo) !== 'undefined') {
-                    var pivotA = this.data.pivotA;
-                    var btPivotA = new Ammo.btVector3(pivotA[0], pivotA[1], pivotA[2]);
-                    var body = this.entity.rigidbody.body;
-                    this.data.constraint = new Ammo.btPoint2PointConstraint(body, btPivotA);
-                    pc.fw.RigidBodyComponentSystem.addConstraint(this.data.constraint);
-                } else {
-                    this.data.constraint = undefined;
-                }
+            if (typeof(Ammo) !== 'undefined') {
+                var pivotA = new Ammo.btVector3(newValue[0], newValue[1], newValue[2]);
+                this.data.constraint.setPivotA(pivotA);
             }
         }
     });
