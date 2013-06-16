@@ -24,6 +24,46 @@ pc.extend(pc.fw, function () {
             },
             defaultValue: [0, 0, 0]
         }, {
+            name: "pivotB",
+            displayName: "Pivot B",
+            description: "Local pivot B",
+            type: "vector",
+            options: {
+                min: 0,
+                step: 0.1
+            },
+            defaultValue: [0, 0, 0]
+        }, {
+            name: "tau",
+            displayName: "Tau",
+            description: "TBD",
+            type: "number",
+            defaultValue: 0.001,
+            options: {
+                min: 0,
+                max: 1
+            }            
+        }, {
+            name: "damping",
+            displayName: "Damping",
+            description: "Damping",
+            type: "number",
+            defaultValue: 1,
+            options: {
+                min: 0,
+                max: 1
+            }            
+        }, {
+            name: "impulseClamp",
+            displayName: "Impulse Clamp",
+            description: "Impulse Clamp",
+            type: "number",
+            defaultValue: 0,
+            options: {
+                min: 0,
+                max: 100
+            }            
+        }, {
             name: "constraint",
             exposed: false
         }];
@@ -53,7 +93,7 @@ pc.extend(pc.fw, function () {
                 }
             }
 
-            properties = ['constraint', 'pivotA'];
+            properties = ['constraint', 'pivotA', 'pivotB', 'tau', 'damping', 'impulseClamp'];
 
             JointBallSocketComponentSystem._super.initializeComponentData.call(this, component, data, properties);
         },
