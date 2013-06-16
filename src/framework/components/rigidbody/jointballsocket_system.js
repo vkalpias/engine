@@ -68,8 +68,8 @@ pc.extend(pc.fw, function () {
         },
         
         onRemove: function (entity, data) {
-            if (entity.rigidbody && entity.rigidbody.body) {
-                this.context.systems.rigidbody.removeBody(entity.rigidbody.body);
+            if (data.constraint) {
+                this.context.systems.rigidbody.removeConstraint(data.constraint);
             }
         },
 
