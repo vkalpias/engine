@@ -19,8 +19,10 @@ pc.extend(pc.fw, function () {
 
         onSetPivotA: function (name, oldValue, newValue) {
             if (typeof(Ammo) !== 'undefined') {
-                var pivotA = new Ammo.btVector3(newValue[0], newValue[1], newValue[2]);
-                this.data.constraint.setPivotA(pivotA);
+                if (this.data.constraint) {
+                    var pivotA = new Ammo.btVector3(newValue[0], newValue[1], newValue[2]);
+                    this.data.constraint.setPivotA(pivotA);
+                }
             }
         }
     });
