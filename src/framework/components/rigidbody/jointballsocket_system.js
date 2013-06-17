@@ -88,6 +88,9 @@ pc.extend(pc.fw, function () {
                     var body = component.entity.rigidbody.body;
                     data.constraint = new Ammo.btPoint2PointConstraint(body, btPivotA);
 
+                    var pivotB = data.constraint.getPivotInB();
+                    data.pivotB = [ pivotB.x(), pivotB.y(), pivotB.z() ];
+
                     var context = this.context;
                     context.systems.rigidbody.addConstraint(data.constraint);
                 }

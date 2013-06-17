@@ -35,7 +35,7 @@ pc.extend(pc.fw, function () {
             if (typeof(Ammo) !== 'undefined') {
                 if (this.data.constraint) {
                     var pivotB = new Ammo.btVector3(newValue[0], newValue[1], newValue[2]);
-//                    this.data.constraint.setPivotB(pivotB);
+                    this.data.constraint.setPivotB(pivotB);
                 }
             }
         },
