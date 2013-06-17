@@ -182,9 +182,9 @@
 ../src/framework/components/rigidbody/collisionsphere_system.js
 ../src/framework/components/rigidbody/collisionsphere_component.js
 ../src/framework/components/rigidbody/collisionsphere_data.js
-../src/framework/components/rigidbody/jointballsocket_system.js
-../src/framework/components/rigidbody/jointballsocket_component.js
-../src/framework/components/rigidbody/jointballsocket_data.js
+../src/framework/components/rigidbody/joints/ballsocketjoint_system.js
+../src/framework/components/rigidbody/joints/ballsocketjoint_component.js
+../src/framework/components/rigidbody/joints/ballsocketjoint_data.js
 ../src/framework/livelink/livelink_livelink.js
 ../src/framework/livelink/livelink_message.js
 ../src/framework/livelink/livelink_update_component_message.js
