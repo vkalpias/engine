@@ -1,26 +1,26 @@
 pc.extend(pc.fw, function () {
     /**
      * @component
-     * @name pc.fw.JointBallSocketComponent
-     * @constructor Create a new JointBallSocketComponent
+     * @name pc.fw.BallSocketJointComponent
+     * @constructor Create a new BallSocketJointComponent
      * @class A ball-socket joint limits translation such that the local pivot points of two rigid bodies
      * match in world space. A chain of rigidbodies can be connected using this constraint. 
-     * @param {pc.fw.JointBallSocketComponentSystem} system The ComponentSystem that created this Component
+     * @param {pc.fw.BallSocketJointComponentSystem} system The ComponentSystem that created this Component
      * @param {pc.fw.Entity} entity The Entity that this Component is attached to.     
      * @property {pc.math.vec3} pivotA The local space coordinate that constrains the entity's rigid body.
      * @property {pc.math.vec3} pivotB The local space coordinate that constrains the entity's rigid body.
      * @extends pc.fw.Component
      */
-    var JointBallSocketComponent = function JointBallSocketComponent (system, entity) {
+    var BallSocketJointComponent = function BallSocketJointComponent (system, entity) {
         this.on('set_pivotA', this.onSetPivotA, this);
         this.on('set_pivotB', this.onSetPivotB, this);
         this.on('set_tau', this.onSetTau, this);
         this.on('set_damping', this.onSetDamping, this);
         this.on('set_impulseClamp', this.onSetImpulseClamp, this);
     };
-    JointBallSocketComponent = pc.inherits(JointBallSocketComponent, pc.fw.Component);
+    BallSocketJointComponent = pc.inherits(BallSocketJointComponent, pc.fw.Component);
     
-    pc.extend(JointBallSocketComponent.prototype, {
+    pc.extend(BallSocketJointComponent.prototype, {
 
         onSetPivotA: function (name, oldValue, newValue) {
             if (typeof(Ammo) !== 'undefined') {
@@ -66,6 +66,6 @@ pc.extend(pc.fw, function () {
     });
 
     return {
-        JointBallSocketComponent: JointBallSocketComponent
+        BallSocketJointComponent: BallSocketJointComponent
     };
 }());

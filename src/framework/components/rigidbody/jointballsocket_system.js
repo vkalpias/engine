@@ -1,17 +1,17 @@
 pc.extend(pc.fw, function () {
     /**
-     * @name pc.fw.JointBallSocketComponentSystem
-     * @constructor Create a new JointBallSocketComponentSystem
-     * @class Manages creation of CollisionBoxComponents
+     * @name pc.fw.BallSocketJointComponentSystem
+     * @constructor Create a new BallSocketJointComponentSystem
+     * @class Manages creation of BallSocketJointComponents
      * @param {pc.fw.ApplicationContext} context The ApplicationContext for the running application
      * @extends pc.fw.ComponentSystem
      */
-    var JointBallSocketComponentSystem = function JointBallSocketComponentSystem (context) {
-        this.id = "jointballsocket";
+    var BallSocketJointComponentSystem = function BallSocketJointComponentSystem(context) {
+        this.id = "ballsocketjoint";
         context.systems.add(this.id, this);
 
-        this.ComponentType = pc.fw.JointBallSocketComponent;
-        this.DataType = pc.fw.JointBallSocketComponentData;
+        this.ComponentType = pc.fw.BallSocketJointComponent;
+        this.DataType = pc.fw.BallSocketJointComponentData;
 
         this.schema = [{
             name: "pivotA",
@@ -77,9 +77,9 @@ pc.extend(pc.fw, function () {
         pc.fw.ComponentSystem.on('update', this.onUpdate, this);
         pc.fw.ComponentSystem.on('toolsUpdate', this.onToolsUpdate, this);
     };
-    JointBallSocketComponentSystem = pc.inherits(JointBallSocketComponentSystem, pc.fw.ComponentSystem);
+    BallSocketJointComponentSystem = pc.inherits(BallSocketJointComponentSystem, pc.fw.ComponentSystem);
     
-    JointBallSocketComponentSystem.prototype = pc.extend(JointBallSocketComponentSystem.prototype, {
+    BallSocketJointComponentSystem.prototype = pc.extend(BallSocketJointComponentSystem.prototype, {
         initializeComponentData: function (component, data, properties) {
             if (typeof(Ammo) !== 'undefined') {
                 if (component.entity.rigidbody) {
@@ -98,7 +98,7 @@ pc.extend(pc.fw, function () {
 
             properties = ['constraint', 'pivotA', 'pivotB', 'tau', 'damping', 'impulseClamp'];
 
-            JointBallSocketComponentSystem._super.initializeComponentData.call(this, component, data, properties);
+            BallSocketJointComponentSystem._super.initializeComponentData.call(this, component, data, properties);
         },
 
         cloneComponent: function (entity, clone) {
@@ -118,7 +118,7 @@ pc.extend(pc.fw, function () {
 
         /**
         * @function
-        * @name pc.fw.JointBallSocketComponentSystem#setDebugRender
+        * @name pc.fw.BallSocketJointComponentSystem#setDebugRender
         * @description Display debug representation of the joint
         * @param {Boolean} value Enable or disable
         */
@@ -146,6 +146,6 @@ pc.extend(pc.fw, function () {
     });
 
     return {
-        JointBallSocketComponentSystem: JointBallSocketComponentSystem
+        BallSocketJointComponentSystem: BallSocketJointComponentSystem
     };
 }());

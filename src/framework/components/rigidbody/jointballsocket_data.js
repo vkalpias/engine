@@ -2,12 +2,12 @@ pc.extend(pc.fw, function () {
 
     /**
      * @private
-     * @name pc.fw.JointBallSocketComponentData
-     * @constructor Create a new JointBallSocketComponentData
+     * @name pc.fw.BallSocketJointComponentData
+     * @constructor Create a new BallSocketJointComponentData
      * @class Data definition for ball-socket joints.
      * @extends pc.fw.ComponentData
      */
-    var JointBallSocketComponentData = function () {
+    var BallSocketJointComponentData = function () {
         this.pivotA = [0, 0, 0];
         this.pivotB = [0, 0, 0];
         this.tau = 0.3;
@@ -17,9 +17,9 @@ pc.extend(pc.fw, function () {
         // Non-serialized properties
         this.constraint = null;
     };
-    JointBallSocketComponentData = pc.inherits(JointBallSocketComponentData, pc.fw.ComponentData);
+    BallSocketJointComponentData = pc.inherits(BallSocketJointComponentData, pc.fw.ComponentData);
 
     return {
-        JointBallSocketComponentData: JointBallSocketComponentData
+        BallSocketJointComponentData: BallSocketJointComponentData
     };
 }());
