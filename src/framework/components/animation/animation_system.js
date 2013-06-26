@@ -19,9 +19,10 @@ pc.extend(pc.fw, function () {
             description: "Animation Asset",
             type: "asset",
             options: {
-                max: 100
+                max: 100,
+                type: "animation"
             },
-            defaultValue: null
+            defaultValue: []
         }, {
             name: "speed",
             displayName: "Speed Factor",
