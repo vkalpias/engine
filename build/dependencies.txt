@@ -191,6 +191,9 @@
 ../src/framework/components/physics/joints/ballsocketjoint_system.js
 ../src/framework/components/physics/joints/ballsocketjoint_component.js
 ../src/framework/components/physics/joints/ballsocketjoint_data.js
+../src/framework/components/physics/joints/hingejoint_system.js
+../src/framework/components/physics/joints/hingejoint_component.js
+../src/framework/components/physics/joints/hingejoint_data.js
 ../src/framework/livelink/livelink_livelink.js
 ../src/framework/livelink/livelink_message.js
 ../src/framework/livelink/livelink_update_component_message.js

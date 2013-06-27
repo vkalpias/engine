@@ -537,6 +537,7 @@ pc.extend(pc.fw, function () {
             var collisionmeshsys = new pc.fw.CollisionMeshComponentSystem(this.context);
             var collisionspheresys = new pc.fw.CollisionSphereComponentSystem(this.context);
             var ballsocketjointsys = new pc.fw.BallSocketJointComponentSystem(this.context);
+            var hingejointsys = new pc.fw.HingeJointComponentSystem(this.context);
         },
 
         /**
