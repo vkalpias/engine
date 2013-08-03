@@ -374,33 +374,22 @@ pc.extend(pc.scene, function () {
                     // Find all the original mesh instances that referred to the pre-split mesh
                     for (k = meshInstances.length - 1; k >= 0; k--) {
                         if (meshInstances[k].mesh === partition.originalMesh) {
-                            meshInstances.push({
-                                mesh: mesh,
-                                node: meshInstances[k].node
-                            });
-                            if (materialMappings) {
-                                materialMappings.push({
-                                    material: materialMappings[k].material
-                                });
+                            if (typeof meshInstances[k].meshes === 'undefined') {
+                                meshInstances[k].meshes = [];
                             }
+                            meshInstances[k].meshes.push(mesh);
                         }
                     }
 
                     base += partition.indexCount;
                 }
+            }
+        }
 
-                for (j = 0; j < partitions.length; j++) {
-                    partition = partitions[j];
-
-                    // Find all the original mesh instances that referred to the pre-split mesh
-                    for (k = meshInstances.length - 1; k >= 0; k--) {
-                        if (meshInstances[k].mesh === partition.originalMesh) {
-                            meshInstances.splice(k, 1);
-                            if (materialMappings) {
-                                materialMappings.splice(k, 1);
-                            }
-                        }
-                    }
+        for (i = meshInstances.length - 1; i >= 0; i--) {
+            if (meshInstances[i].meshes) {
+                if (meshInstances[i].mesh) {
+                    delete meshInstances[i].mesh;
                 }
             }
         }

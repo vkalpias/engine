@@ -29,7 +29,7 @@ pc.extend(pc.scene, function () {
 
     var MeshInstance = function (node, mesh, material) {
         this.node = node;           // The node that defines the transform of the mesh instance
-        this.mesh = mesh;           // The mesh that this instance renders
+        this.meshes = [ mesh ];     // The mesh(es) that this instance renders
         this.material = material;   // The material with which to render this instance
 
         // Render options
@@ -50,7 +50,7 @@ pc.extend(pc.scene, function () {
 
     MeshInstance.prototype = {
         syncAabb: function () {
-            this.aabb.setFromTransformedAabb(this.mesh.aabb, this.node.worldTransform);
+            this.aabb.setFromTransformedAabb(this.meshes[0].aabb, this.node.worldTransform);
         },
 
         updateKey: function () {

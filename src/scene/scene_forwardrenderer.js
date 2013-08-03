@@ -343,8 +343,10 @@ pc.extend(pc.scene, function () {
             var drawCalls = scene.drawCalls;
             var shadowCasters = scene.shadowCasters;
 
-            var i, j, numInstances;
-            var drawCall, meshInstance, prevMeshInstance = null, mesh, material, prevMaterial = null, style;
+            var i, j, numShadowCasters;
+            var drawCall, meshInstance, prevMeshInstance = null;
+            var mesh, meshes, numMeshes;
+            var material, prevMaterial = null, style;
 
             // Update all skin matrix palettes
             for (i = 0, numDrawCalls = scene.drawCalls.length; i < numDrawCalls; i++) {
@@ -389,8 +391,6 @@ pc.extend(pc.scene, function () {
                     if (!drawCall.command) {
                         meshInstance = drawCall;
                         if (meshInstance.layer !== pc.scene.LAYER_SKYBOX) {
-                            mesh = meshInstance.mesh;
-
                             this.modelMatrixId.setValue(meshInstance.node.worldTransform);
                             if (meshInstance.skinInstance) {
                                 this.poseMatrixId.setValue(meshInstance.skinInstance.matrixPaletteF32);
@@ -400,10 +400,13 @@ pc.extend(pc.scene, function () {
                             }
 
                             style = meshInstance.renderStyle;
-
-                            device.setVertexBuffer(mesh.vertexBuffer, 0);
-                            device.setIndexBuffer(mesh.indexBuffer[style]);
-                            device.draw(mesh.primitive[style]);
+                            meshes = meshInstance.meshes;
+                            for (j = 0, numMeshes = meshes.length; j < numMeshes; j++) {
+                                mesh = meshes[j];
+                                device.setVertexBuffer(mesh.vertexBuffer, 0);
+                                device.setIndexBuffer(mesh.indexBuffer[style]);
+                                device.draw(mesh.primitive[style]);
+                            }
                         }
                     }
 
@@ -520,12 +523,11 @@ pc.extend(pc.scene, function () {
 
                     device.updateLocalState(this._shadowState);
 
-                    for (j = 0, numInstances = shadowCasters.length; j < numInstances; j++) {
+                    for (j = 0, numShadowCasters = shadowCasters.length; j < numShadowCasters; j++) {
                         meshInstance = shadowCasters[j];
-                        mesh = meshInstance.mesh;
-                        material = meshInstance.material;
+                        meshes = meshInstance.meshes;
 
-                        this.modelMatrixId.setValue(meshInstance.node.worldTransform);
+                        material = meshInstance.material;
                         if (material.opacityMap) {
                             scope.resolve('texture_opacityMap').setValue(material.opacityMap);
                         }
@@ -536,11 +538,16 @@ pc.extend(pc.scene, function () {
                             device.setShader(material.opacityMap ? this._depthProgStaticOp : this._depthProgStatic);
                         }
 
+                        this.modelMatrixId.setValue(meshInstance.node.worldTransform);
+
                         style = meshInstance.renderStyle;
 
-                        device.setVertexBuffer(mesh.vertexBuffer, 0);
-                        device.setIndexBuffer(mesh.indexBuffer[style]);
-                        device.draw(mesh.primitive[style]);
+                        for (j = 0, numMeshes = meshes.length; j < numMeshes; j++) {
+                            mesh = meshes[j];
+                            device.setVertexBuffer(mesh.vertexBuffer, 0);
+                            device.setIndexBuffer(mesh.indexBuffer[style]);
+                            device.draw(mesh.primitive[style]);
+                        }
                     }
 
                     device.clearLocalState();
@@ -564,28 +571,31 @@ pc.extend(pc.scene, function () {
                 } else {
                     // We have a mesh instance
                     meshInstance = drawCall;
-                    mesh = meshInstance.mesh;
+                    meshes = meshInstance.meshes;
+
                     material = meshInstance.material;
+                    if (material !== prevMaterial) {
+                        device.setShader(material.getProgram(device, meshes[0]));
+                        material.setParameters(device);
+                        device.clearLocalState();
+                        device.updateLocalState(material.getState());
+                    } else if (meshInstance.skinInstance !== prevMeshInstance.skinInstance) {
+                        device.setShader(material.getProgram(device, meshes[0]));
+                    }
 
                     this.modelMatrixId.setValue(meshInstance.node.worldTransform);
                     if (meshInstance.skinInstance) {
                         this.poseMatrixId.setValue(meshInstance.skinInstance.matrixPaletteF32);
                     }
 
-                    if (material !== prevMaterial) {
-                        device.setShader(material.getProgram(device, mesh));
-                        material.setParameters(device);
-                        device.clearLocalState();
-                        device.updateLocalState(material.getState());
-                    } else if (meshInstance.skinInstance !== prevMeshInstance.skinInstance) {
-                        device.setShader(material.getProgram(device, mesh));
-                    }
-
                     style = meshInstance.renderStyle;
 
-                    device.setVertexBuffer(mesh.vertexBuffer, 0);
-                    device.setIndexBuffer(mesh.indexBuffer[style]);
-                    device.draw(mesh.primitive[style]);
+                    for (j = 0, numMeshes = meshes.length; j < numMeshes; j++) {
+                        mesh = meshes[j];
+                        device.setVertexBuffer(mesh.vertexBuffer, 0);
+                        device.setIndexBuffer(mesh.indexBuffer[style]);
+                        device.draw(mesh.primitive[style]);
+                    }
 
                     prevMaterial = material;
                     prevMeshInstance = meshInstance;
