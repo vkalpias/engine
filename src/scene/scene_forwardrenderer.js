@@ -189,9 +189,63 @@ pc.extend(pc.scene, function () {
         this._shadowState = {
             blend: false
         };
+
+        this.currentCamera = null;
+        this.currentMeshInstance = null;
     }
 
     pc.extend(ForwardRenderer.prototype, {
+        getModelViewProjectionMatrix: function() {
+            var cmi = this.currentMeshInstance;
+            var modelViewProjectionMatrix = cmi.modelViewProjectionMatrix;
+            pc.math.mat4.multiply(cmi.node.worldMatrix, this.currentCamera.viewProjectionMatrix, modelViewProjectionMatrix);
+            return modelViewProjectionMatrix;
+        },
+
+        getModelViewMatrix: function() {
+            var cmi = this.currentMeshInstance;
+            var modelViewMatrix = cmi.modelViewMatrix;
+            pc.math.mat4.multiply(cmi.node.worldMatrix, this.currentCamera.viewMatrix, modelViewMatrix);
+            return modelViewMatrix;
+        },
+
+        getNormalMatrix: function() {
+            var cmi = this.currentMeshInstance;
+            var modelViewMatrix = cmi.modelViewMatrix;
+            var normalMatrix = cmi.normalMatrix;
+            pc.math.mat4.invertTo3x3(modelViewMatrix, normalMatrix);
+            pc.math.mat3.transpose(normalMatrix, normalMatrix);
+            return normalMatrix;
+        },
+
+        getModelMatrix: function() {
+            return this.currentMeshInstance.node.worldMatrix;
+        },
+
+        getViewMatrix: function() {
+            return this.currentCamera.viewMatrix;
+        },
+
+        getProjectionMatrix: function() {
+            return this.currentCamera.projectionMatrix;
+        },
+
+        getViewProjectionMatrix: function() {
+            return this.currentCamera.viewProjectionMatrix;
+        },
+
+        getPoseMatrices: function () {
+            return this.currentMeshInstance.skinInstance.matrixPaletteF32;
+        },
+
+        getTime: function () {
+
+        },
+
+        getDimensions: function () {
+
+        },
+
         setCamera: function (camera) {
             // Projection Matrix
             var projMat = camera.getProjectionMatrix();
@@ -579,6 +633,8 @@ pc.extend(pc.scene, function () {
                     if (meshInstance.skinInstance) {
                         this.poseMatrixId.setValue(meshInstance.skinInstance.matrixPaletteF32);
                     }
+
+                    this.currentMeshInstance = meshInstance;
 
                     if (material !== prevMaterial) {
                         device.setShader(material.getProgram(device, mesh));
