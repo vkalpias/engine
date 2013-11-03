@@ -716,7 +716,7 @@ pc.extend(pc.scene, function () {
             return results;
         },
 
-        sync: function () {
+        _sync: function () {
             if (this.dirtyLocal) {
                 pc.math.mat4.compose(this.localPosition, this.localRotation, this.localScale, this.localTransform);
 
@@ -732,6 +732,31 @@ pc.extend(pc.scene, function () {
                 }
 
                 this.dirtyWorld = false;
+
+                for (var i = 0, len = this._children.length; i < len; i++) {
+                    this._children[i].dirtyWorld = true;
+                }
+            }
+        },
+
+        _syncFire: function () {
+            if (this.dirtyLocal) {
+                pc.math.mat4.compose(this.localPosition, this.localRotation, this.localScale, this.localTransform);
+
+                this.dirtyLocal = false;
+                this.dirtyWorld = true;
+            }
+
+            if (this.dirtyWorld) {
+                if (this._parent === null) { 
+                    pc.math.mat4.copy(this.localTransform, this.worldTransform);
+                } else {
+                    pc.math.mat4.multiply(this._parent.worldTransform, this.localTransform, this.worldTransform);
+                }
+                
+                this.dirtyWorld = false;
+
+                this.fire("transformchange", this.worldTransform);
 
                 for (var i = 0, len = this._children.length; i < len; i++) {
                     this._children[i].dirtyWorld = true;
@@ -939,6 +964,8 @@ pc.extend(pc.scene, function () {
             this.dirtyLocal = true;
         }
     });
+    
+    GraphNode.prototype.sync = GraphNode.prototype._sync;
 
     return {
         GraphNode: GraphNode

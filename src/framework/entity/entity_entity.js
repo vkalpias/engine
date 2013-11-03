@@ -35,6 +35,19 @@ pc.extend(pc.fw, function () {
         this.c = {}; // Component storage
 
         pc.extend(this, pc.events);
+        this.on = function (name, callback, scope) {
+            if (name === "transformchange") {
+                this.sync = this._syncFire;
+            }
+            pc.events.on.call(this, name, callback, scope);
+        }
+        this.off = function (name, callback, scope) {
+            pc.events.off.call(this, name, callback, scope);
+            // if there is no longer a transformchange event revert back to the normal _sync method
+            if (name === "transformchange" && !this.hasEvent("transformchange")) {
+                this.sync = this._sync;
+            }
+        }
     };
     Entity = pc.inherits(Entity, pc.scene.GraphNode);
     
