@@ -83,7 +83,7 @@ pc.extend(pc.fw, function () {
                     body.setLinearVelocity(ammoVec1);
                 }                
             } else {
-                pc.math.vec3.copy(this._linearVelocity, lv);
+                pc.math.vec3.copy(lv, this._linearVelocity);
             }
         },
     });
@@ -109,7 +109,7 @@ pc.extend(pc.fw, function () {
                     body.setAngularVelocity(ammoVec1);
                 }
             } else {
-                pc.math.vec3.copy(this._angularVelocity, av);
+                pc.math.vec3.copy(av, this._angularVelocity);
             }
         },
     });
@@ -573,6 +573,8 @@ pc.extend(pc.fw, function () {
         syncBodyToEntity: function () {
             var body = this.body;
             if (body.isActive() && body.getMotionState()) {
+                this.entity.syncHierarchy();
+                
                 body.getMotionState().getWorldTransform(ammoTransform);
 
                 var p = ammoTransform.getOrigin();

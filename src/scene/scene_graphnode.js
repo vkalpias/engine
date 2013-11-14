@@ -41,6 +41,21 @@ pc.extend(pc.scene, function () {
 
         this._parent = null;
         this._children = [];
+
+        pc.extend(this, pc.events);
+        this.on = function (name, callback, scope) {
+            if (name === "transformchange") {
+                this.sync = this._syncFire;
+            }
+            pc.events.on.call(this, name, callback, scope);
+        }
+        this.off = function (name, callback, scope) {
+            pc.events.off.call(this, name, callback, scope);
+            // if there is no longer a transformchange event revert back to the normal _sync method
+            if (name === "transformchange" && !this.hasEvent("transformchange")) {
+                this.sync = this._sync;
+            }
+        }
     };
 
     Object.defineProperty(GraphNode.prototype, 'right', {
@@ -739,6 +754,9 @@ pc.extend(pc.scene, function () {
             }
         },
 
+        // Internal method
+        // If the 'transformchanged' event is being listened to then we use the _syncFire instead of _sync to sync transforms
+        // This will fire the event when the transform has changed.
         _syncFire: function () {
             if (this.dirtyLocal) {
                 pc.math.mat4.compose(this.localPosition, this.localRotation, this.localScale, this.localTransform);
