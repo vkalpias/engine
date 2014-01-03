@@ -287,7 +287,7 @@ pc.extend(pc.fw, function () {
         * Called before the call to system.super.initializeComponentData is made
         */
         beforeInitialize: function (component, data) {
-            this.createDebugShape(data);
+            this.createDebugShape(component, data);
             data.shape = this.createPhysicalShape(component.entity, data);
 
             data.model = new pc.scene.Model();
@@ -338,7 +338,7 @@ pc.extend(pc.fw, function () {
         * @private
         * Optionally creates a debug shape for a collision
         */
-        createDebugShape: function (data) {
+        createDebugShape: function (component, data) {
             return undefined;
         },
 
@@ -407,6 +407,15 @@ pc.extend(pc.fw, function () {
             //}
 
             return this.system.addComponent(clone, data);  
+        },
+
+        /** 
+        * @private
+        * Returns the world scale of the specified entity
+        */
+        getWorldScale: function (entity) {
+            var worldTransform = entity.getWorldTransform();
+            return pc.math.mat4.getScale(worldTransform);
         }
     };
 
@@ -419,7 +428,7 @@ pc.extend(pc.fw, function () {
 
     CollisionBoxSystemImpl.prototype = pc.extend(CollisionBoxSystemImpl.prototype, {
 
-        createDebugShape: function (data) {
+        createDebugShape: function (component, data) {
             if (!this.mesh) {
                 var gd = this.system.context.graphicsDevice;
 
@@ -465,9 +474,13 @@ pc.extend(pc.fw, function () {
 
         createPhysicalShape: function (entity, data) {
             if (typeof(Ammo) !== 'undefined') {
+                var scale = this.getWorldScale(entity);
+
                 return new Ammo.btBoxShape( 
-                    new Ammo.btVector3( 
-                        data.halfExtents[0], data.halfExtents[1], data.halfExtents[2]
+                    new Ammo.btVector3(
+                        scale[0] * data.halfExtents[0], 
+                        scale[1] * data.halfExtents[1], 
+                        scale[2] * data.halfExtents[2]
                     ));    
             } else {
                 return undefined;
@@ -478,11 +491,17 @@ pc.extend(pc.fw, function () {
             var x = data.halfExtents[0];
             var y = data.halfExtents[1];
             var z = data.halfExtents[2];
+            var scale = this.getWorldScale(entity);
 
             var root = data.model.graph;
             root.setPosition(entity.getPosition());
             root.setRotation(entity.getRotation());
-            root.setLocalScale(x / 0.5, y / 0.5, z / 0.5);
+            root.setLocalScale(scale[0] * x / 0.5, scale[1] * y / 0.5, scale[2] * z / 0.5);
+        },
+
+        updateTransform: function(component, position, rotation, scale) {
+            this.recreatePhysicalShapes(component);
+            CollisionBoxSystemImpl._super.updateTransform.call(this, component, position, rotation, scale);
         }
     });
 
@@ -495,7 +514,7 @@ pc.extend(pc.fw, function () {
     CollisionSphereSystemImpl = pc.inherits(CollisionSphereSystemImpl, CollisionSystemImpl);
 
     CollisionSphereSystemImpl.prototype = pc.extend(CollisionSphereSystemImpl.prototype, {
-        createDebugShape: function (data) {
+        createDebugShape: function (component, data) {
             if (!this.mesh) {
                 var context = this.system.context;
                 var gd = context.graphicsDevice;
@@ -561,18 +580,34 @@ pc.extend(pc.fw, function () {
 
         createPhysicalShape: function (entity, data) {
             if (typeof(Ammo) !== 'undefined') {
-                return new Ammo.btSphereShape(data.radius);   
+                var scaledRadius = this.getScaledRadius(entity, data.radius);
+                return new Ammo.btSphereShape(scaledRadius);   
             } else {
                 return undefined;
             }
         },
 
+        /**
+        * Scales the radius in each direction and returns the max value between all 
+        * the directions and the initial radius
+        */
+        getScaledRadius: function (entity, radius) {
+            var scale = this.getWorldScale(entity);
+            return Math.max(Math.max(Math.max(radius*scale[0], radius*scale[1]), radius*scale[2]), radius);
+        },
+
         updateDebugShape: function (entity, data) {
-            var r = data.radius;
             var root = data.model.graph;
             root.setPosition(entity.getPosition());
             root.setRotation(entity.getRotation());
-            root.setLocalScale(r / 0.5, r / 0.5, r / 0.5);
+
+            var scaledRadius = this.getScaledRadius(entity, data.radius);
+            root.setLocalScale(scaledRadius / 0.5, scaledRadius / 0.5, scaledRadius / 0.5);
+        },
+
+        updateTransform: function(component, position, rotation, scale) {
+            this.recreatePhysicalShapes(component);
+            CollisionSphereSystemImpl._super.updateTransform.call(this, component, position, rotation, scale);
         }
     });
 
@@ -585,7 +620,7 @@ pc.extend(pc.fw, function () {
     CollisionCapsuleSystemImpl = pc.inherits(CollisionCapsuleSystemImpl, CollisionSystemImpl);
 
     CollisionCapsuleSystemImpl.prototype = pc.extend(CollisionCapsuleSystemImpl.prototype, {
-        createDebugShape: function (data) {            
+        createDebugShape: function (component, data) {            
             if (!this.mesh) {
                 var gd = this.system.context.graphicsDevice;
 
@@ -595,7 +630,7 @@ pc.extend(pc.fw, function () {
                 ]);
 
                 var vertexBuffer = new pc.gfx.VertexBuffer(gd, format, 328, pc.gfx.BUFFER_DYNAMIC);
-                this.updateCapsuleShape(data, vertexBuffer);
+                this.updateCapsuleShape(component, data, vertexBuffer);
 
                 var mesh = new pc.scene.Mesh();
                 mesh.vertexBuffer = vertexBuffer;
@@ -615,10 +650,13 @@ pc.extend(pc.fw, function () {
             }
         },
 
-        updateCapsuleShape: function(data, vertexBuffer) {
+        updateCapsuleShape: function(component, data, vertexBuffer) {
             var axis = (typeof data.axis !== 'undefined') ? data.axis : 1;
             var radius = data.radius || 0.5;
             var height = Math.max((data.height || 2) - 2 * radius, 0);
+
+            var scale = this.getWorldScale(component.entity);
+            height *= scale[1];
 
             var positions = new Float32Array(vertexBuffer.lock());
 
@@ -706,6 +744,9 @@ pc.extend(pc.fw, function () {
             var radius = data.radius || 0.5;
             var height = Math.max((data.height || 2) - 2 * radius, 0);
 
+            var scale = this.getWorldScale(entity);
+            height *= scale[1];
+
             if (typeof(Ammo) !== 'undefined') {
                 switch (axis) {
                     case 0:
@@ -733,7 +774,7 @@ pc.extend(pc.fw, function () {
             var model = component.data.model;
             if (model) {
                 var vertexBuffer = model.meshInstances[0].mesh.vertexBuffer; 
-                this.updateCapsuleShape(component.data, vertexBuffer);
+                this.updateCapsuleShape(component, component.data, vertexBuffer);
                 CollisionCapsuleSystemImpl._super.recreatePhysicalShapes.call(this, component);
             }
         },
@@ -799,8 +840,7 @@ pc.extend(pc.fw, function () {
                     var useQuantizedAabbCompression = true;
                     var triMeshShape = new Ammo.btBvhTriangleMeshShape(triMesh, useQuantizedAabbCompression);
 
-                    var wtm = meshInstance.node.getWorldTransform();
-                    var scl = pc.math.mat4.getScale(wtm);
+                    var scl = this.getWorldScale(meshInstance.node);
                     triMeshShape.setLocalScaling(new Ammo.btVector3(scl[0], scl[1], scl[2]));
 
                     var position = meshInstance.node.getPosition();
@@ -817,8 +857,7 @@ pc.extend(pc.fw, function () {
                     shape.addChildShape(transform, triMeshShape);
                 }
 
-                var entityTransform = entity.getWorldTransform();
-                var scale = pc.math.mat4.getScale(entityTransform);
+                var scale = this.getWorldScale(entity);
                 var vec = new Ammo.btVector3();
                 vec.setValue(scale[0], scale[1], scale[2]);
                 shape.setLocalScaling(vec);
@@ -891,8 +930,7 @@ pc.extend(pc.fw, function () {
 
         updateTransform: function(component, position, rotation, scale) {
             if (component.shape) {
-                var entityTransform = component.entity.getWorldTransform();
-                var worldScale = pc.math.mat4.getScale(entityTransform);
+                var worldScale = this.getWorldScale(component.entity);
 
                 // if the scale changed then recreate the shape
                 var previousScale = component.shape.getLocalScaling();                
