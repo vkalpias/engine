@@ -651,8 +651,6 @@ pc.extend(pc.fw, function () {
                 mesh.primitive[0].base = 0;
                 mesh.primitive[0].count = vertexBuffer.getNumVertices();
                 mesh.primitive[0].indexed = false;
-                
-                this.mesh = mesh;
             }
             
             // no need to create a new material for each capsule shape
@@ -671,7 +669,7 @@ pc.extend(pc.fw, function () {
         * max value between the axes and the original radius
         */
         getScaledRadius: function (radius, scale, axis) {
-            radis = radius || 0.5;
+            radius = radius || 0.5;
             return Math.max(Math.max(radius, radius * scale[(axis+1)%3]), radius * scale[(axis+2)%3]);
         },
 
@@ -822,7 +820,7 @@ pc.extend(pc.fw, function () {
     CollisionCylinderSystemImpl = pc.inherits(CollisionCylinderSystemImpl, CollisionSystemImpl);
 
     CollisionCylinderSystemImpl.prototype = pc.extend(CollisionCylinderSystemImpl.prototype, {
-        createDebugMesh: function (data) {            
+        createDebugMesh: function (entity, data) {            
             if (data.model && data.model.meshInstances && data.model.meshInstances.length) {
                 return data.model.meshInstances[0];
             } else {
@@ -833,7 +831,7 @@ pc.extend(pc.fw, function () {
                 ]);
 
                 var vertexBuffer = new pc.gfx.VertexBuffer(gd, format, 168, pc.gfx.BUFFER_DYNAMIC);
-                this.updateCylinderShape(data, vertexBuffer);
+                this.updateCylinderShape(entity, data, vertexBuffer);
 
                 var mesh = new pc.scene.Mesh();
                 mesh.vertexBuffer = vertexBuffer;
@@ -853,10 +851,25 @@ pc.extend(pc.fw, function () {
             }
         },
 
-        updateCylinderShape: function(data, vertexBuffer) {
+        /**
+        * Scales the radius on all axes except the height axis and returns the 
+        * max value between the axes and the original radius
+        */
+        getScaledRadius: function (radius, scale, axis) {
+            radius = (typeof radius !== 'undefined' ? radius : 0.5);
+            return Math.max(Math.max(radius, radius * scale[(axis+1)%3]), radius * scale[(axis+2)%3]);
+        },
+
+        getScaledHeight: function (height, scale, axis) {
+            height = (typeof height != 'undefined' ? height : 1);
+            return height * scale[axis];
+        },
+
+        updateCylinderShape: function(entity, data, vertexBuffer) {
             var axis = (typeof data.axis !== 'undefined') ? data.axis : 1;
-            var radius = (typeof data.radius !== 'undefined') ? data.radius : 0.5;
-            var height = (typeof data.height !== 'undefined') ? data.height : 1;
+            var scale = this.getWorldScale(entity);            
+            var radius = this.getScaledRadius(data.radius, scale, axis);
+            var height = this.getScaledHeight(data.height, scale, axis); 
 
             var positions = new Float32Array(vertexBuffer.lock());
 
@@ -914,8 +927,9 @@ pc.extend(pc.fw, function () {
             var halfExtents = null;
             var shape = null;
             var axis = (typeof data.axis !== 'undefined') ? data.axis : 1;
-            var radius = (typeof data.radius !== 'undefined') ? data.radius : 0.5;
-            var height = (typeof data.height !== 'undefined') ? data.height : 1;
+            var scale = this.getWorldScale(entity);            
+            var radius = this.getScaledRadius(data.radius, scale, axis);
+            var height = this.getScaledHeight(data.height, scale, axis); 
 
             if (typeof(Ammo) !== 'undefined') {
                 switch (axis) {
@@ -943,11 +957,16 @@ pc.extend(pc.fw, function () {
             root.setLocalScale(1, 1, 1);
         },
 
+        updateTransform: function(component, position, rotation, scale) {
+            this.recreatePhysicalShapes(component);
+            CollisionCylinderSystemImpl._super.updateTransform.call(this, component, position, rotation, scale); 
+        },
+
         recreatePhysicalShapes: function (component) {
             var model = component.data.model;
             if (model) {
-                var vertexBuffer = this.createDebugMesh(component.data).mesh.vertexBuffer;
-                this.updateCylinderShape(component.data, vertexBuffer);
+                var vertexBuffer = this.createDebugMesh(component.entity, component.data).mesh.vertexBuffer;
+                this.updateCylinderShape(component.entity, component.data, vertexBuffer);
                 CollisionCylinderSystemImpl._super.recreatePhysicalShapes.call(this, component);
             }
         },
