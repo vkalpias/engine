@@ -287,12 +287,11 @@ pc.extend(pc.fw, function () {
         * Called before the call to system.super.initializeComponentData is made
         */
         beforeInitialize: function (component, data) {
-            this.createDebugShape(component, data);
             data.shape = this.createPhysicalShape(component.entity, data);
 
             data.model = new pc.scene.Model();
             data.model.graph = new pc.scene.GraphNode();
-            data.model.meshInstances = [ new pc.scene.MeshInstance(data.model.graph, this.mesh, this.material) ]; 
+            data.model.meshInstances = [this.createDebugMesh(component.entity, data)];
         },
 
         /** 
@@ -336,9 +335,9 @@ pc.extend(pc.fw, function () {
 
         /**
         * @private
-        * Optionally creates a debug shape for a collision
+        * Optionally creates a debug mesh instance for a collision
         */
-        createDebugShape: function (component, data) {
+        createDebugMesh: function (entity, data) {
             return undefined;
         },
 
@@ -428,7 +427,7 @@ pc.extend(pc.fw, function () {
 
     CollisionBoxSystemImpl.prototype = pc.extend(CollisionBoxSystemImpl.prototype, {
 
-        createDebugShape: function (component, data) {
+        createDebugMesh: function (entity, data) {
             if (!this.mesh) {
                 var gd = this.system.context.graphicsDevice;
 
@@ -462,7 +461,7 @@ pc.extend(pc.fw, function () {
                 mesh.primitive[0].indexed = true;
                 this.mesh = mesh;
             }
-
+            
             if (!this.material) {
                 var material = new pc.scene.BasicMaterial();
                 material.color = pc.math.vec4.create(0, 0, 1, 1);
@@ -470,6 +469,7 @@ pc.extend(pc.fw, function () {
                 this.material = material;
             }
 
+            return new pc.scene.MeshInstance(data.model.graph, this.mesh, this.material);
         },
 
         createPhysicalShape: function (entity, data) {
@@ -514,7 +514,7 @@ pc.extend(pc.fw, function () {
     CollisionSphereSystemImpl = pc.inherits(CollisionSphereSystemImpl, CollisionSystemImpl);
 
     CollisionSphereSystemImpl.prototype = pc.extend(CollisionSphereSystemImpl.prototype, {
-        createDebugShape: function (component, data) {
+        createDebugMesh: function (entity, data) {
             if (!this.mesh) {
                 var context = this.system.context;
                 var gd = context.graphicsDevice;
@@ -576,8 +576,10 @@ pc.extend(pc.fw, function () {
                 material.update();
                 this.material = material;
             }
-        },
 
+            return new pc.scene.MeshInstance(data.model.graph, this.mesh, this.material);
+        },
+    
         createPhysicalShape: function (entity, data) {
             if (typeof(Ammo) !== 'undefined') {
                 var scaledRadius = this.getScaledRadius(entity, data.radius);
@@ -620,8 +622,13 @@ pc.extend(pc.fw, function () {
     CollisionCapsuleSystemImpl = pc.inherits(CollisionCapsuleSystemImpl, CollisionSystemImpl);
 
     CollisionCapsuleSystemImpl.prototype = pc.extend(CollisionCapsuleSystemImpl.prototype, {
-        createDebugShape: function (component, data) {            
-            if (!this.mesh) {
+        createDebugMesh: function (entity, data) {            
+            // The capsule collision system creates a separate debug mesh
+            // for each capsule because of its particular shape. So if a mesh has already
+            // been created for this component then return it, otherwise create a new one
+            if (data.model && data.model.meshInstances && data.model.meshInstances.length) {
+                return data.model.meshInstances[0];
+            } else {
                 var gd = this.system.context.graphicsDevice;
 
                 // Create the graphical resources required to render a capsule shape
@@ -630,7 +637,7 @@ pc.extend(pc.fw, function () {
                 ]);
 
                 var vertexBuffer = new pc.gfx.VertexBuffer(gd, format, 328, pc.gfx.BUFFER_DYNAMIC);
-                this.updateCapsuleShape(component, data, vertexBuffer);
+                this.updateCapsuleShape(entity, data, vertexBuffer);
 
                 var mesh = new pc.scene.Mesh();
                 mesh.vertexBuffer = vertexBuffer;
@@ -642,12 +649,15 @@ pc.extend(pc.fw, function () {
                 this.mesh = mesh;
             }
             
+            // no need to create a new material for each capsule shape
             if (!this.material) {
                 var material = new pc.scene.BasicMaterial();
                 material.color = pc.math.vec4.create(0, 0, 1, 1);
                 material.update();
                 this.material = material;    
             }
+
+            return new pc.scene.MeshInstance(data.model.graph, mesh, this.material);
         },
 
         /**
@@ -664,9 +674,9 @@ pc.extend(pc.fw, function () {
             return Math.max(height * scale[axis] - 2 * radius, 0);
         },
 
-        updateCapsuleShape: function(component, data, vertexBuffer) {
+        updateCapsuleShape: function(entity, data, vertexBuffer) {
             var axis = (typeof data.axis !== 'undefined') ? data.axis : 1;
-            var scale = this.getWorldScale(component.entity);            
+            var scale = this.getWorldScale(entity);            
             var radius = this.getScaledRadius(data.radius, scale, axis);
             var height = this.getScaledHeight(data.height, scale, radius, axis); 
 
@@ -783,8 +793,10 @@ pc.extend(pc.fw, function () {
         recreatePhysicalShapes: function (component) {
             var model = component.data.model;
             if (model) {
-                var vertexBuffer = model.meshInstances[0].mesh.vertexBuffer; 
-                this.updateCapsuleShape(component, component.data, vertexBuffer);
+                // get the vertex buffer for this collision shape. createDebugMesh
+                // will return the existing mesh if one exists in this case
+                var vertexBuffer = this.createDebugMesh(component.entity, component.data).mesh.vertexBuffer;
+                this.updateCapsuleShape(component.entity, component.data, vertexBuffer);
                 CollisionCapsuleSystemImpl._super.recreatePhysicalShapes.call(this, component);
             }
         },
