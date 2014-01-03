@@ -652,11 +652,15 @@ pc.extend(pc.fw, function () {
 
         updateCapsuleShape: function(component, data, vertexBuffer) {
             var axis = (typeof data.axis !== 'undefined') ? data.axis : 1;
+            var scale = this.getWorldScale(component.entity);            
             var radius = data.radius || 0.5;
-            var height = Math.max((data.height || 2) - 2 * radius, 0);
-
-            var scale = this.getWorldScale(component.entity);
-            height *= scale[1];
+            
+            // scale the radius on all axes except the height axis and get the 
+            // max value between the axes and the original radius
+            var scaledRadius = Math.max(Math.max(radius, radius * scale[(axis+1)%3]), radius * scale[(axis+2)%3]);
+            
+            var height = data.height || 2;
+            height = Math.max(height * scale[axis] - 2 * scaledRadius, 0);
 
             var positions = new Float32Array(vertexBuffer.lock());
 
@@ -679,42 +683,42 @@ pc.extend(pc.fw, function () {
             for (cap = -1; cap < 2; cap += 2) {
                 for (i = 0; i < 40; i++) {
                     theta = 2 * Math.PI * (i / 40);
-                    positions[x+xo] = radius * Math.cos(theta);
+                    positions[x+xo] = scaledRadius * Math.cos(theta);
                     positions[x+yo] = cap * height * 0.5;
-                    positions[x+zo] = radius * Math.sin(theta);
+                    positions[x+zo] = scaledRadius * Math.sin(theta);
                     x += 3;
 
                     theta = 2 * Math.PI * ((i + 1) / 40);
-                    positions[x+xo] = radius * Math.cos(theta);
+                    positions[x+xo] = scaledRadius * Math.cos(theta);
                     positions[x+yo] = cap * height * 0.5;
-                    positions[x+zo] = radius * Math.sin(theta);
+                    positions[x+zo] = scaledRadius * Math.sin(theta);
                     x += 3;
                 }
 
                 for (i = 0; i < 20; i++) {
                     theta = Math.PI * (i / 20) + Math.PI * 1.5;
                     positions[x+xo] = 0;
-                    positions[x+yo] = cap * (height * 0.5 + radius * Math.cos(theta));
-                    positions[x+zo] = cap * (radius * Math.sin(theta));
+                    positions[x+yo] = cap * (height * 0.5 + scaledRadius * Math.cos(theta));
+                    positions[x+zo] = cap * (scaledRadius * Math.sin(theta));
                     x += 3;
 
                     theta = Math.PI * ((i + 1) / 20) + Math.PI * 1.5;
                     positions[x+xo] = 0;
-                    positions[x+yo] = cap * (height * 0.5 + radius * Math.cos(theta));
-                    positions[x+zo] = cap * (radius * Math.sin(theta));
+                    positions[x+yo] = cap * (height * 0.5 + scaledRadius * Math.cos(theta));
+                    positions[x+zo] = cap * (scaledRadius * Math.sin(theta));
                     x += 3;
                 }
 
                 for (i = 0; i < 20; i++) {
                     theta = Math.PI * (i / 20) + Math.PI * 1.5;
-                    positions[x+xo] = cap * (radius * Math.sin(theta));
-                    positions[x+yo] = cap * (height * 0.5 + radius * Math.cos(theta));
+                    positions[x+xo] = cap * (scaledRadius * Math.sin(theta));
+                    positions[x+yo] = cap * (height * 0.5 + scaledRadius * Math.cos(theta));
                     positions[x+zo] = 0;
                     x += 3;
 
                     theta = Math.PI * ((i + 1) / 20) + Math.PI * 1.5;
-                    positions[x+xo] = cap * (radius * Math.sin(theta));
-                    positions[x+yo] = cap * (height * 0.5 + radius * Math.cos(theta));
+                    positions[x+xo] = cap * (scaledRadius * Math.sin(theta));
+                    positions[x+yo] = cap * (height * 0.5 + scaledRadius * Math.cos(theta));
                     positions[x+zo] = 0;
                     x += 3;
                 }
@@ -723,15 +727,15 @@ pc.extend(pc.fw, function () {
             // Connect caps
             for (i = 0; i < 4; i++) {
                 theta = 2 * Math.PI * (i / 4);
-                positions[x+xo] = radius * Math.cos(theta);
+                positions[x+xo] = scaledRadius * Math.cos(theta);
                 positions[x+yo] = height * 0.5;
-                positions[x+zo] = radius * Math.sin(theta);
+                positions[x+zo] = scaledRadius * Math.sin(theta);
                 x += 3;
 
                 theta = 2 * Math.PI * (i / 4);
-                positions[x+xo] = radius * Math.cos(theta);
+                positions[x+xo] = scaledRadius * Math.cos(theta);
                 positions[x+yo] = -height * 0.5;
-                positions[x+zo] = radius * Math.sin(theta);
+                positions[x+zo] = scaledRadius * Math.sin(theta);
                 x += 3;
             }
 
@@ -777,6 +781,11 @@ pc.extend(pc.fw, function () {
                 this.updateCapsuleShape(component, component.data, vertexBuffer);
                 CollisionCapsuleSystemImpl._super.recreatePhysicalShapes.call(this, component);
             }
+        },
+
+        updateTransform: function(component, position, rotation, scale) {
+            this.recreatePhysicalShapes(component);
+            CollisionCapsuleSystemImpl._super.updateTransform.call(this, component, position, rotation, scale); 
         },
     });
 
