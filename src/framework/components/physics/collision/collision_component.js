@@ -161,6 +161,16 @@ pc.extend(pc.fw, function () {
             this.system.onTransformChanged(this, position, rotation, scale);
         },
 
+        /**
+        * @function
+        * @name pc.fw.CollisionComponent#syncEntityToBody
+        * @description Recreates the collision shape. This must be called after 
+        * the scaling of an Entity changes (e.g. when {@link pc.fw.Entity#setLocalScale} is called)
+        */ 
+        syncEntityToBody: function () {
+            this.system.recreatePhysicalShapes(this);
+        },
+
         onBeforeRemove: function(entity, component) {
             if (this === component) {
                 entity.off('livelink:updatetransform', this.onLiveLinkUpdateTransform, this);
