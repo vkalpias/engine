@@ -27,19 +27,6 @@ pc.extend(pc.fw, function () {
     var FLAG_TRIGGER_LEAVE = 16;
     var FLAG_GLOBAL_CONTACT = 32;
 
-    // holds all possible collision events in a table that has this form:
-    //                         STATIC_RIGID_BODY | NON_STATIC_RIGID_BODY | TRIGGER
-    // ------------------------------------------------------------------------------
-    // STATIC_RIGID_BODY     |     flags         |        flags          |   flags
-    // NON_STATIC_RIGID_BODY |     flags         |        flags          |   flags
-    // TRIGGER               |     flags         |        flags          |   flags
-    // ------------------------------------------------------------------------------
-    var collision_table = [
-        [0, FLAG_GLOBAL_CONTACT | FLAG_CONTACT | FLAG_COLLISION_START | FLAG_COLLISION_END, 0],
-        [FLAG_GLOBAL_CONTACT | FLAG_CONTACT | FLAG_COLLISION_START | FLAG_COLLISION_END, FLAG_GLOBAL_CONTACT | FLAG_CONTACT | FLAG_COLLISION_START | FLAG_COLLISION_END, FLAG_TRIGGER_ENTER | FLAG_TRIGGER_LEAVE],
-        [0, FLAG_TRIGGER_ENTER | FLAG_TRIGGER_LEAVE, 0]
-    ];
-
     /**
     * @name pc.fw.RaycastResult
     * @class Object holding the result of a successful raycast hit
@@ -261,25 +248,23 @@ pc.extend(pc.fw, function () {
 
         this.maxSubSteps = 10;
         this.fixedTimeStep = 1/60;
-        
-        // // Create the Ammo physics world
-        // if (typeof(Ammo) !== 'undefined') {
-        //     var collisionConfiguration = new Ammo.btDefaultCollisionConfiguration();
-        //     var dispatcher = new Ammo.btCollisionDispatcher(collisionConfiguration);
-        //     var overlappingPairCache = new Ammo.btDbvtBroadphase();
-        //     var solver = new Ammo.btSequentialImpulseConstraintSolver();
-        //     this.dynamicsWorld = new Ammo.btDiscreteDynamicsWorld(dispatcher, overlappingPairCache, solver, collisionConfiguration);
+        this.frameCounter = null;
 
-        //     this._ammoGravity = new Ammo.btVector3(0, -9.82, 0);
-        //     this.dynamicsWorld.setGravity(this._ammoGravity);
-            
-        //     // Only bind 'update' if Ammo is loaded
-        //     pc.fw.ComponentSystem.on('update', this.onUpdate, this);
+        // holds all possible collision events in a table that has this form:
+        //                         STATIC_RIGID_BODY | NON_STATIC_RIGID_BODY | TRIGGER
+        // ------------------------------------------------------------------------------
+        // STATIC_RIGID_BODY     |     flags         |        flags          |   flags
+        // NON_STATIC_RIGID_BODY |     flags         |        flags          |   flags
+        // TRIGGER               |     flags         |        flags          |   flags
+        // ------------------------------------------------------------------------------
+        this.collisionTable = [
+            [0, FLAG_GLOBAL_CONTACT | FLAG_CONTACT | FLAG_COLLISION_START | FLAG_COLLISION_END, 0],
+            [FLAG_GLOBAL_CONTACT | FLAG_CONTACT | FLAG_COLLISION_START | FLAG_COLLISION_END, FLAG_GLOBAL_CONTACT | FLAG_CONTACT | FLAG_COLLISION_START | FLAG_COLLISION_END, FLAG_TRIGGER_ENTER | FLAG_TRIGGER_LEAVE],
+            [0, FLAG_TRIGGER_ENTER | FLAG_TRIGGER_LEAVE, 0]
+        ];
 
-        //     // Lazily create temp vars
-        //     ammoRayStart = new Ammo.btVector3();
-        //     ammoRayEnd = new Ammo.btVector3();
-        // }
+        this.collisionFlagsCache = {};
+        this.hasContactEvents = false;
 
         this.on('remove', this.onRemove, this);
 
@@ -346,6 +331,27 @@ pc.extend(pc.fw, function () {
             this.addComponent(clone, data);
         },
 
+        addComponent: function (entity, data) {
+            RigidBodyComponentSystem._super.addComponent.call(this, entity, data);
+
+            this.collisionFlagsCache[entity.getGuid()] = {
+                flags: 0,
+                type: data.type,
+                frameCounter: -1
+            }
+        },
+
+        registerTrigger: function (entity) {
+            this.collisionFlagsCache[entity.getGuid()] = {
+                flags: 0,
+                frameCounter: -1
+            }
+        },
+
+        unregisterTrigger: function (entity) {
+            delete this.collisionFlagsCache[entity.getGuid()];
+        },
+
         onRemove: function (entity, data) {
             if (data.body) {
                 this.removeBody(data.body);    
@@ -353,6 +359,8 @@ pc.extend(pc.fw, function () {
             }
             
             data.body = null;
+
+            delete this.collisionFlagsCache[entity.getGuid()];
         },
 
         addBody: function (body) {
@@ -521,21 +529,29 @@ pc.extend(pc.fw, function () {
         * related entities.
         */
         _cleanOldCollisions: function () {
+            var getCollisionFlags = this._getCollisionFlags.bind(this);
+            var getEntityCollisionFlags = this._getEntityCollisionFlags.bind(this);
+
             for (var guid in collisions) {
                 if (collisions.hasOwnProperty(guid)) {
+
                     var entity = collisions[guid].entity;
+                    var entityFlags = getEntityCollisionFlags(entity);
+
                     var entityCollision = entity.collision;
                     var others = collisions[guid].others;
                     var length = others.length;
                     var i=length;
+
                     while (i--) {
                         var other = others[i];
                         // if the contact does not exist in the current frame collisions then fire event
                         if (!frameCollisions[guid] || frameCollisions[guid].others.indexOf(other) < 0) {
                             others.splice(i, 1);
 
-                            if (entityCollision && other.collision) {
-                                var flags = this._getCollisionFlags(entity, other);
+                            if (entityFlags.flags && other.collision) {
+                                var otherFlags = getEntityCollisionFlags(other);
+                                var flags = getCollisionFlags(entityFlags, otherFlags);
 
                                 if (flags & FLAG_COLLISION_END) {
                                     entityCollision.fire(EVENT_COLLISION_END, other);
@@ -545,6 +561,7 @@ pc.extend(pc.fw, function () {
                                     entityCollision.fire(EVENT_TRIGGER_LEAVE, other);
                                 }
                             }
+                            
                         }
                     }  
 
@@ -555,66 +572,31 @@ pc.extend(pc.fw, function () {
             } 
         },
 
-        _getCollisionFlags: function (entity, other) {
-            var entityRb = entity.rigidbody;
-            var otherRb = other.rigidbody;
+        /**
+         * Gets collision flags for the specified entity only for events
+         * that should be fired when a contact occurs
+         */
+        _getContactCollisionFlags: function (entity) {
+            var flags = 0;
 
-            var entityIsTrigger = !entityRb;
-            var otherIsTrigger = !otherRb;
+            var collision = entity.collision;
 
-            // early exit check
-            if (entityIsTrigger && otherIsTrigger) {
-                return 0;
-            }
+            if (collision) {
+                // rigid body
+                if (entity.rigidbody) {
+                    if (collision.hasEvent(EVENT_CONTACT)) {
+                        flags = flags | FLAG_CONTACT;
+                    }
 
-            var store = this.store;
-            var entityIsNonStaticRb = entityRb && store[entity.getGuid()].data.type !== pc.fw.RIGIDBODY_TYPE_STATIC;
-            var otherIsNonStaticRb = otherRb && store[other.getGuid()].data.type !== pc.fw.RIGIDBODY_TYPE_STATIC;
-           
-            // find flags cell in collision table
-            var row = 0;
-            var col = 0;
-
-            if (entityIsNonStaticRb) {
-                row = 1;
-            } else if (entityIsTrigger) {
-                row = 2;
-            }
-
-            if (otherIsNonStaticRb) {
-                col = 1;
-            } else if (otherIsTrigger) {
-                col = 2;
-            }
-
-            var flags = collision_table[row][col];
-
-            if (flags) {
-                var collision = entity.collision;            
-
-                // turn off flags that do not correspond to event listeners
-                if (!this.hasEvent(EVENT_CONTACT)) {
-                    flags = flags & (~FLAG_GLOBAL_CONTACT);
-                }
-
-                if (!collision.hasEvent(EVENT_CONTACT)) {
-                    flags = flags & (~FLAG_CONTACT);
-                }
-
-                if (!collision.hasEvent(EVENT_COLLISION_START)) {
-                    flags = flags & (~FLAG_COLLISION_START);
-                }
-
-                if (!collision.hasEvent(EVENT_COLLISION_END)) {
-                    flags = flags & (~FLAG_COLLISION_END);
-                }
-
-                if (!collision.hasEvent(EVENT_TRIGGER_ENTER)) {
-                    flags = flags & (~FLAG_TRIGGER_ENTER);
-                }
-
-                if (!collision.hasEvent(EVENT_TRIGGER_LEAVE)) {
-                    flags = flags & (~FLAG_TRIGGER_LEAVE);
+                    if (collision.hasEvent(EVENT_COLLISION_START)) {
+                        flags = flags | FLAG_COLLISION_START;
+                    }
+                } 
+                // trigger
+                else {
+                    if (collision.hasEvent(EVENT_TRIGGER_ENTER)) {
+                        flags = flags | FLAG_TRIGGER_ENTER;
+                    }
                 }
             }
 
@@ -622,41 +604,110 @@ pc.extend(pc.fw, function () {
         },
 
         /**
-        * @private
-        * @name pc.fw.RigidBodyComponentSystem#raycast
-        * @description Raycast the world and return all entities the ray hits. Fire a ray into the world from start to end, 
-        * if the ray hits an entity with a rigidbody component, the callback function is called along with a {@link pc.fw.RaycastResult}.
-        * @param {pc.Vec3} start The world space point where the ray starts
-        * @param {pc.Vec3} end The world space point where the ray ends
-        * @param {Function} callback Function called if ray hits another body. Passed a single argument: a {@link pc.fw.RaycastResult} object
-        */
-        // raycast: function (start, end, callback) {
-        //     var rayFrom = new Ammo.btVector3(start.x, start.y, start.z);
-        //     var rayTo = new Ammo.btVector3(end.x, end.y, end.z);
-        //     var rayCallback = new Ammo.AllHitsRayResultCallback(rayFrom, rayTo);
+         * Gets collision flags for the specified entity
+         * only for events that should be fired when a contact 
+         * no longer occures
+         */
+        _getNoContactCollisionFlags: function (entity) {
+            var flags = 0;
 
-        //     this.dynamicsWorld.rayTest(rayFrom, rayTo, rayCallback);
-        //     if (rayCallback.hasHit()) {
-        //         var body = Module.castObject(rayCallback.get_m_collisionObject(), Ammo.btRigidBody);
-        //         var point = rayCallback.get_m_hitPointWorld();
-        //         var normal = rayCallback.get_m_hitNormalWorld();
+            var collision = entity.collision;
 
-        //         if (body) {
-        //             callback(new RaycastResult(
-        //                             body.entity, 
-        //                             new pc.Vec3(point.x(), point.y(), point.z()),
-        //                             new pc.Vec3(normal.x(), normal.y(), normal.z())
-        //                         )
-        //                     );
-        //         }
-        //     }
+            if (collision) {
+                // rigid body
+                if (entity.rigidbody) {
+                    if (collision.hasEvent(EVENT_COLLISION_END)) {
+                        flags = flags | FLAG_COLLISION_END;
+                    }
+                } 
+                // trigger
+                else {
+                    if (collision.hasEvent(EVENT_TRIGGER_LEAVE)) {
+                        flags = flags | FLAG_TRIGGER_LEAVE;
+                    }
+                }
+            }
 
-        //     Ammo.destroy(rayFrom);
-        //     Ammo.destroy(rayTo);
-        //     Ammo.destroy(rayCallback);
-        // },
+            return flags;
+        },
+
+        _getEntityCollisionFlags: function (entity) {
+            var cache = this.collisionFlagsCache[entity.getGuid()];
+
+            if (cache.frameCounter !== this.frameCounter) {
+                var flags = 0;
+
+                var collision = entity.collision;
+
+                if (collision) {
+                    // rigid body
+                    if (entity.rigidbody) {
+                        if (collision.hasEvent(EVENT_CONTACT)) {
+                            flags = flags | FLAG_CONTACT;
+                        }
+
+                        if (collision.hasEvent(EVENT_COLLISION_START)) {
+                            flags = flags | FLAG_COLLISION_START;
+                        }
+
+                        if (collision.hasEvent(EVENT_COLLISION_END)) {
+                            flags = flags | FLAG_COLLISION_END;
+                        }
+                    } 
+                    // trigger
+                    else {
+                        if (collision.hasEvent(EVENT_TRIGGER_ENTER)) {
+                            flags = flags | FLAG_TRIGGER_ENTER;
+                        }
+
+                        if (collision.hasEvent(EVENT_TRIGGER_LEAVE)) {
+                            flags = flags | FLAG_TRIGGER_LEAVE;
+                        }
+                    }
+                }
+
+                // global contacts
+                if (this.hasContactEvents) {
+                    flags = flags | FLAG_GLOBAL_CONTACT;
+                }
+
+                cache.flags = flags;
+                cache.frameCounter = this.frameCounter;
+            }
+
+            return cache;
+        },
+
+        _getCollisionFlags: function (firstEntityCache, secondEntityCache) {
+            // find flags cell in collision table
+            var row = 0;
+            var col = 0;
+
+            if (firstEntityCache.type) {
+                if (firstEntityCache.type !== pc.fw.RIGIDBODY_TYPE_STATIC) {
+                    row = 1; // non static rigid body
+                }
+            } else {
+                row = 2; // trigger
+            }
+
+            if (secondEntityCache.type) {
+                if (secondEntityCache.type !== pc.fw.RIGIDBODY_TYPE_STATIC) {
+                    col = 1; // non static rigid body
+                }
+            } else {
+                col = 2; // trigger
+            }
+
+            return firstEntityCache.flags & this.collisionTable[row][col];
+        },
+
 
         onUpdate: function (dt) {
+            this.frameCounter = (this.frameCounter + 1) % Number.MAX_VALUE; // TODO: use a different frame counter
+
+            var collisionFlagsCache = this.collisionFlagsCache;
+
             // Update the transforms of all bodies
             this.dynamicsWorld.stepSimulation(dt, this.maxSubSteps, this.fixedTimeStep);
 
@@ -667,6 +718,9 @@ pc.extend(pc.fw, function () {
                     var entity = components[id].entity;
                     var componentData = components[id].data;
                     if (componentData.body && componentData.body.isActive() && componentData.enabled && entity.enabled) {
+                        // update cached type in case it was changed by scripts
+                        collisionFlagsCache[id].type = componentData.type; 
+
                         if (componentData.type === pc.fw.RIGIDBODY_TYPE_DYNAMIC) {
                             entity.rigidbody.syncBodyToEntity();
                         } else if (componentData.type === pc.fw.RIGIDBODY_TYPE_KINEMATIC) {
@@ -677,36 +731,46 @@ pc.extend(pc.fw, function () {
                 }
             }
 
-            // Check for collisions and fire callbacks
+            // cache references to methods and variables for better performance
             var dispatcher = this.dynamicsWorld.getDispatcher();
             var numManifolds = dispatcher.getNumManifolds();
             var i, j;
-            
+            var getCollisionFlags = this._getCollisionFlags.bind(this);
+            var getEntityCollisionFlags = this._getEntityCollisionFlags.bind(this);
+            var handleEntityCollision = this._handleEntityCollision.bind(this);
+            var createContactPointFromAmmo = this._createContactPointFromAmmo.bind(this);
+            var createReverseContactPointFromAmmo = this._createReverseContactPointFromAmmo.bind(this);
+            var frameCounter = this.frameCounter;
+
             frameCollisions = {};
+
+            this.hasContactEvents = this.hasEvent(EVENT_CONTACT);
 
             // loop through the all contacts and fire events
             for (i = 0; i < numManifolds; i++) {
                 var manifold = dispatcher.getManifoldByIndexInternal(i);
-                var body0 = manifold.getBody0();
-                var body1 = manifold.getBody1();
-                var wb0 = btRigidBody.prototype['upcast'](body0);
-                var wb1 = btRigidBody.prototype['upcast'](body1);
-                var e0 = wb0.entity;
-                var e1 = wb1.entity;
+                var numContacts = manifold.getNumContacts();
+                if (numContacts > 0) {
+                    var body0 = manifold.getBody0();
+                    var body1 = manifold.getBody1();
+                    var wb0 = btRigidBody.prototype['upcast'](body0);
+                    var wb1 = btRigidBody.prototype['upcast'](body1);
+                    var e0 = wb0.entity;
+                    var e1 = wb1.entity;
 
-                // check if entity is null - TODO: investigate when this happens
-                if (!e0 || !e1) {
-                    continue;
-                }
+                    // check if entity is null - TODO: investigate when this happens
+                    if (!e0 || !e1) {
+                        continue;
+                    }
 
-                var collisionFlags0 = this._getCollisionFlags(e0, e1);
-                var collisionFlags1 = this._getCollisionFlags(e1, e0);
+                    var flags0 = getEntityCollisionFlags(e0);
+                    var flags1 = getEntityCollisionFlags(e1);
+                    var collisionFlags0 = flags0.flags ? getCollisionFlags(flags0, flags1) : 0;
+                    var collisionFlags1 = flags1.flags ? getCollisionFlags(flags1, flags0) : 0;
 
-                // do some early checks for optimization
-                if (collisionFlags0 || collisionFlags1) {
-                    var numContacts = manifold.getNumContacts();
+                    // do some early checks for optimization
+                    if (collisionFlags0 || collisionFlags1) {
 
-                    if (numContacts > 0) {                   
                         var cachedContactPoint, cachedContactResult;
                         var useContacts0 = collisionFlags0 & FLAG_COLLISION_START || collisionFlags0 & FLAG_CONTACT;
                         var useContacts1 = collisionFlags1 & FLAG_COLLISION_START || collisionFlags1 & FLAG_CONTACT;
@@ -717,22 +781,22 @@ pc.extend(pc.fw, function () {
                             var contactPoint = manifold.getContactPoint(j);
 
                             if (collisionFlags0 & FLAG_GLOBAL_CONTACT) {
-                                cachedContactPoint = this._createContactPointFromAmmo(contactPoint);
+                                cachedContactPoint = createContactPointFromAmmo(contactPoint);
                                 this.fire(EVENT_CONTACT, new SingleContactResult(e0, e1, cachedContactPoint));
                             }
 
                             if (useContacts0) {
-                                cachedContactPoint = cachedContactPoint || this._createContactPointFromAmmo(contactPoint);
+                                cachedContactPoint = cachedContactPoint || createContactPointFromAmmo(contactPoint);
                                 contacts0.push(cachedContactPoint);
                             }
 
                             if (useContacts1) {
-                                contacts1.push(this._createReverseContactPointFromAmmo(contactPoint));
+                                contacts1.push(createReverseContactPointFromAmmo(contactPoint));
                             }
                         }
 
-                        this._handleEntityCollision(e0, e1, contacts0, collisionFlags0);                        
-                        this._handleEntityCollision(e1, e0, contacts1, collisionFlags1);
+                        handleEntityCollision(e0, e1, contacts0, collisionFlags0);                        
+                        handleEntityCollision(e1, e0, contacts1, collisionFlags1);
                     }
                 }
             }                

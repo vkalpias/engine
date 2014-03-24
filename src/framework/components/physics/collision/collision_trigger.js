@@ -67,13 +67,18 @@ pc.extend(pc.fw, function () {
                 if (this.component.enabled && entity.enabled) {
                     this.enable();
                 }
+
+                this.context.systems.rigidbody.registerTrigger(this.entity);
             } 
         },
 
         destroy: function () {
+            var rigidbodySystem = this.context.systems.rigidbody;
             if (this.body) {
-                this.context.systems.rigidbody.removeBody(this.body);
+                rigidbodySystem.removeBody(this.body);
             }
+
+            rigidbodySystem.unregisterTrigger(this.entity);
         },
 
         syncEntityToBody: function () {
