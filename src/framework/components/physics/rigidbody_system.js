@@ -248,7 +248,7 @@ pc.extend(pc.fw, function () {
 
         this.maxSubSteps = 10;
         this.fixedTimeStep = 1/60;
-        this.frameCounter = null;
+        this.frameCounter = 0;
 
         // holds all possible collision events in a table that has this form:
         //                         STATIC_RIGID_BODY | NON_STATIC_RIGID_BODY | TRIGGER
@@ -573,97 +573,54 @@ pc.extend(pc.fw, function () {
         },
 
         /**
-         * Gets collision flags for the specified entity only for events
-         * that should be fired when a contact occurs
+         * Returns a number that contains flags for collision events
+         * that the specified entity has listeners for. These flags 
+         * are returned from the collisionFlagsCache unless this is a 
+         * new frame in which case they will be recalculated and stored in 
+         * the cache.
          */
-        _getContactCollisionFlags: function (entity) {
-            var flags = 0;
-
-            var collision = entity.collision;
-
-            if (collision) {
-                // rigid body
-                if (entity.rigidbody) {
-                    if (collision.hasEvent(EVENT_CONTACT)) {
-                        flags = flags | FLAG_CONTACT;
-                    }
-
-                    if (collision.hasEvent(EVENT_COLLISION_START)) {
-                        flags = flags | FLAG_COLLISION_START;
-                    }
-                } 
-                // trigger
-                else {
-                    if (collision.hasEvent(EVENT_TRIGGER_ENTER)) {
-                        flags = flags | FLAG_TRIGGER_ENTER;
-                    }
-                }
-            }
-
-            return flags;
-        },
-
-        /**
-         * Gets collision flags for the specified entity
-         * only for events that should be fired when a contact 
-         * no longer occures
-         */
-        _getNoContactCollisionFlags: function (entity) {
-            var flags = 0;
-
-            var collision = entity.collision;
-
-            if (collision) {
-                // rigid body
-                if (entity.rigidbody) {
-                    if (collision.hasEvent(EVENT_COLLISION_END)) {
-                        flags = flags | FLAG_COLLISION_END;
-                    }
-                } 
-                // trigger
-                else {
-                    if (collision.hasEvent(EVENT_TRIGGER_LEAVE)) {
-                        flags = flags | FLAG_TRIGGER_LEAVE;
-                    }
-                }
-            }
-
-            return flags;
-        },
-
         _getEntityCollisionFlags: function (entity) {
-            var cache = this.collisionFlagsCache[entity.getGuid()];
+            var cache = this.collisionFlagsCache[entity._guid];
 
             if (cache.frameCounter !== this.frameCounter) {
                 var flags = 0;
-
                 var collision = entity.collision;
+                var e;
 
                 if (collision) {
-                    // rigid body
-                    if (entity.rigidbody) {
-                        if (collision.hasEvent(EVENT_CONTACT)) {
-                            flags = flags | FLAG_CONTACT;
-                        }
+                    var cb = collision._callbacks;
+                    if (cb) {
+                        // rigid body
+                        if (entity.rigidbody) {
+                            e = cb.contact;
+                            if (e && e.length > 0) {
+                                flags = flags | FLAG_CONTACT;
+                            }
 
-                        if (collision.hasEvent(EVENT_COLLISION_START)) {
-                            flags = flags | FLAG_COLLISION_START;
-                        }
+                            e = cb.collisionstart;
+                            if (e && e.length > 0) {
+                                flags = flags | FLAG_COLLISION_START;
+                            }
 
-                        if (collision.hasEvent(EVENT_COLLISION_END)) {
-                            flags = flags | FLAG_COLLISION_END;
-                        }
-                    } 
-                    // trigger
-                    else {
-                        if (collision.hasEvent(EVENT_TRIGGER_ENTER)) {
-                            flags = flags | FLAG_TRIGGER_ENTER;
-                        }
+                            e = cb.collisionend;
+                            if (e && e.length > 0) {
+                                flags = flags | FLAG_COLLISION_END;
+                            }
+                        } 
+                        // trigger
+                        else {
+                            e = cb.triggerenter;
+                            if (e && e.length > 0) {
+                                flags = flags | FLAG_TRIGGER_ENTER;
+                            }
 
-                        if (collision.hasEvent(EVENT_TRIGGER_LEAVE)) {
-                            flags = flags | FLAG_TRIGGER_LEAVE;
-                        }
+                            e = cb.triggerleave;
+                            if (e && e.length > 0) {
+                                flags = flags | FLAG_TRIGGER_LEAVE;
+                            }
+                        }    
                     }
+                    
                 }
 
                 // global contacts
@@ -678,6 +635,10 @@ pc.extend(pc.fw, function () {
             return cache;
         },
 
+        /**
+         * Gets a number that contains flags for collision events
+         * that should be fired when the two entities collide.
+         */
         _getCollisionFlags: function (firstEntityCache, secondEntityCache) {
             // find flags cell in collision table
             var row = 0;
@@ -704,7 +665,9 @@ pc.extend(pc.fw, function () {
 
 
         onUpdate: function (dt) {
-            this.frameCounter = (this.frameCounter + 1) % Number.MAX_VALUE; // TODO: use a different frame counter
+            // advance the frame counter so that collision flags will be  
+            // recalculated for this frame
+            this.frameCounter = (this.frameCounter + 1) % Number.MAX_VALUE; 
 
             var collisionFlagsCache = this.collisionFlagsCache;
 
@@ -772,8 +735,8 @@ pc.extend(pc.fw, function () {
                     if (collisionFlags0 || collisionFlags1) {
 
                         var cachedContactPoint, cachedContactResult;
-                        var useContacts0 = collisionFlags0 & FLAG_COLLISION_START || collisionFlags0 & FLAG_CONTACT;
-                        var useContacts1 = collisionFlags1 & FLAG_COLLISION_START || collisionFlags1 & FLAG_CONTACT;
+                        var useContacts0 = collisionFlags0 & (FLAG_COLLISION_START | FLAG_CONTACT);
+                        var useContacts1 = collisionFlags1 & (FLAG_COLLISION_START | FLAG_CONTACT);
                         contacts0.length = 0;
                         contacts1.length = 0;
 
