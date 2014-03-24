@@ -590,35 +590,30 @@ pc.extend(pc.fw, function () {
                 if (collision) {
                     var cb = collision._callbacks;
                     if (cb) {
-                        // rigid body
-                        if (entity.rigidbody) {
-                            e = cb.contact;
-                            if (e && e.length > 0) {
-                                flags = flags | FLAG_CONTACT;
-                            }
+                        e = cb.contact;
+                        if (e && e.length > 0) {
+                            flags = flags | FLAG_CONTACT;
+                        }
 
-                            e = cb.collisionstart;
-                            if (e && e.length > 0) {
-                                flags = flags | FLAG_COLLISION_START;
-                            }
+                        e = cb.collisionstart;
+                        if (e && e.length > 0) {
+                            flags = flags | FLAG_COLLISION_START;
+                        }
 
-                            e = cb.collisionend;
-                            if (e && e.length > 0) {
-                                flags = flags | FLAG_COLLISION_END;
-                            }
-                        } 
-                        // trigger
-                        else {
-                            e = cb.triggerenter;
-                            if (e && e.length > 0) {
-                                flags = flags | FLAG_TRIGGER_ENTER;
-                            }
+                        e = cb.collisionend;
+                        if (e && e.length > 0) {
+                            flags = flags | FLAG_COLLISION_END;
+                        }
 
-                            e = cb.triggerleave;
-                            if (e && e.length > 0) {
-                                flags = flags | FLAG_TRIGGER_LEAVE;
-                            }
-                        }    
+                        e = cb.triggerenter;
+                        if (e && e.length > 0) {
+                            flags = flags | FLAG_TRIGGER_ENTER;
+                        }
+
+                        e = cb.triggerleave;
+                        if (e && e.length > 0) {
+                            flags = flags | FLAG_TRIGGER_LEAVE;
+                        }
                     }
                     
                 }
