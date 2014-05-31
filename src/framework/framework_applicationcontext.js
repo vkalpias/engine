@@ -8,7 +8,7 @@ pc.extend(pc.fw, function() {
      * @param {pc.scene.Scene} scene Used to manage models to render
      * @param {pc.gfx.Device} graphicsDevice Global graphics device
      * @param {Object} registry ComponentSystemRegistry stores all the ComponentSystems and is used to access Component data
-     * @param {Object} [options] Optional extras such as input handlers      
+     * @param {Object} [options] Optional extras such as input handlers
      * @param {Object} [options.controller] Generic controller for getting user input
      * @param {Object} [options.keyboard] Keyboard controller for getting user input
      * @param {Object} [options.mouse] Mouse controller for getting user input
@@ -29,7 +29,7 @@ pc.extend(pc.fw, function() {
         this.root = new pc.fw.Entity();
 
         var prefix = options.depot ? options.depot.assets.getServer().getBaseUrl() : null;
-        
+
         /**
         * @name pc.fw.ApplicationContext#assets
         * @description The registry of assets that are available to use.
@@ -41,19 +41,19 @@ pc.extend(pc.fw, function() {
         * )});
         */
         this.assets = new pc.asset.AssetRegistry(this.loader, prefix);
-        
+
         /**
          * @name pc.fw.ApplicationContext#systems
-         * @description Use this to access all the Component Systems by name. 
-         * Component Systems are used to modify properties that relate to an entire Component type. 
+         * @description Use this to access all the Component Systems by name.
+         * Component Systems are used to modify properties that relate to an entire Component type.
          * @type pc.fw.ComponentSystemRegistry
          * @example
          * context.systems.rigidbody.setGravity(0, 10, 0); // set the gravity for all rigidbody components
          */
         this.systems = registry;
-            
+
         options = options || {};
-        
+
         /**
          * @name pc.fw.ApplicationContext#controller
          * @description General input handler
@@ -66,7 +66,7 @@ pc.extend(pc.fw, function() {
          * @type pc.input.Keyboard
          */
         this.keyboard = options.keyboard;
-        
+
         /**
          * @name pc.fw.ApplicationContext#mouse
          * @description Input handler for the mouse if available
@@ -88,7 +88,41 @@ pc.extend(pc.fw, function() {
         */
         this.gamepads = options.gamepads;
     };
-    
+
+    ApplicationContext.prototype = {
+        destroy: function () {
+            if (this.mouse) {
+                this.mouse.off('mouseup');
+                this.mouse.off('mousedown');
+                this.mouse.off('mousewheel');
+                this.mouse.off('mousemove');
+
+                this.mouse = null;
+            }
+
+            if (this.keyboard) {
+                this.keyboard.off("keydown");
+                this.keyboard.off("keyup");
+                this.keyboard.off("keypress");
+
+                this.keyboard = null;
+            }
+
+            if (this.touch) {
+                this.touch.off('touchstart');
+                this.touch.off('touchend');
+                this.touch.off('touchmove');
+                this.touch.off('touchcancel');
+
+                this.touch = null;
+            }
+
+            if (this.controller) {
+                this.controller = null;
+            }
+        }
+    };
+
     return {
         ApplicationContext: ApplicationContext
     };

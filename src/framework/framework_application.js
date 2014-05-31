@@ -144,6 +144,30 @@ pc.extend(pc.fw, function () {
     };
 
     Application.prototype = {
+        destroy: function () {
+            Application._applications[this.canvas.id] = null;
+
+            this.off('librariesloaded');
+            document.removeEventListener('visibilitychange');
+            document.removeEventListener('mozvisibilitychange');
+            document.removeEventListener('msvisibilitychange');
+            document.removeEventListener('webkitvisibilitychange');
+
+            this._link.detach();
+            this._link = null;
+
+            this.context.destroy();
+            this.context.systems = [];
+            this.context.root.destroy();
+            this.context = null;
+
+            this.graphicsDevice = null;
+
+            this.renderer = null;
+            this.audioManager = null;
+            this.canvas = null;
+        },
+
         /**
         * Load a pack and asset set from a table of contents config
         * @param {String} name The name of the Table of Contents block to load
@@ -343,6 +367,9 @@ pc.extend(pc.fw, function () {
          * the next tick. Override this if you have a custom Application.
          */
         tick: function () {
+            if (!this.canvas) {
+                return;
+            }
             // Submit a request to queue up a new animation frame immediately
             requestAnimationFrame(this.tick.bind(this), this.canvas);
 
