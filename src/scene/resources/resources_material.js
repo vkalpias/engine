@@ -14,16 +14,15 @@ pc.extend(pc.resources, function () {
         "linear_mip_linear":   pc.gfx.FILTER_LINEAR_MIPMAP_LINEAR
     };
 
-    var materialCache = {};
-
     var MaterialResourceLoader = function (device, assetRegistry) {
         this._device = device;
         this._assets = assetRegistry;
+        this._cache = {};
     };
 
     MaterialResourceLoader.prototype.load = function (materialId) {
-        materialCache = {};
-        if (!materialCache[materialId]) {
+        // materialCache = {};
+        if (!this._cache[materialId]) {
             var material = new pc.scene.PhongMaterial();
             var asset = this._assets.getAssetByResourceId(materialId);
             if (!asset) {
@@ -31,8 +30,8 @@ pc.extend(pc.resources, function () {
             }
 
             if (asset) {
-                var materialData = asset.data;
-                this._updatePhongMaterial(material, asset.data);
+                var materialData = pc.extend({}, asset.data);
+                this._updatePhongMaterial(material, materialData);
 
                 // When running in the tools listen for change events on the asset so we can update the material
                 asset.on('change', function (asset, attribute, value) {
@@ -42,10 +41,10 @@ pc.extend(pc.resources, function () {
                 }, this);
             }
 
-            materialCache[materialId] = material;
+            this._cache[materialId] = material;
         }
 
-        return materialCache[materialId];
+        return this._cache[materialId];
     };
 
     // Copy asset data into material

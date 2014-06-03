@@ -35,6 +35,9 @@ pc.extend(pc.resources, function () {
                 });
             } else if ((ext === '.jpg') || (ext === '.jpeg') || (ext === '.gif') || (ext === '.png')) {
                 var image = new Image();
+
+                image.crossOrigin = 'anonymous';
+
                 // Call success callback after opening Texture
                 image.onload = function () {
                     resolve(image);

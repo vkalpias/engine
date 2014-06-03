@@ -67,7 +67,7 @@ pc.extend(pc.fw, function () {
         this.context = new pc.fw.ApplicationContext(loader, new pc.scene.Scene(), this.graphicsDevice, registry, options);
 
         // Enable new texture bank feature to cache textures
-        var textureCache = new pc.resources.TextureCache(loader);
+        // var textureCache = new pc.resources.TextureCache(loader);
 
         loader.registerHandler(pc.resources.JsonRequest, new pc.resources.JsonResourceHandler());
         loader.registerHandler(pc.resources.TextRequest, new pc.resources.TextResourceHandler());
@@ -156,16 +156,20 @@ pc.extend(pc.fw, function () {
             this._link.detach();
             this._link = null;
 
-            this.context.destroy();
             this.context.systems = [];
             this.context.root.destroy();
+            this.context.destroy();
             this.context = null;
+
+            pc.fw.ComponentSystem.destroy();
 
             this.graphicsDevice = null;
 
             this.renderer = null;
             this.audioManager = null;
             this.canvas = null;
+
+            pc.net.http = new pc.net.Http();
         },
 
         /**

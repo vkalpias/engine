@@ -39,6 +39,17 @@
     };
 
     ResourceLoader.prototype = {
+        destroy: function () {
+            for (var type in this._handlers) {
+                this._handlers[type].setLoader(null);
+            }
+            this._handlers = {};
+            this._types = {};
+            this._cache = {};
+            this._haches = {};
+            this._canonicals = {};
+        },
+
         /**
         * @function
         * @name pc.resources.ResourceLoader#createFileRequest
@@ -240,6 +251,7 @@
             if (hash) {
                 return this._cache[hash];
             } else {
+
                 return null;
             }
         },

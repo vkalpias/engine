@@ -120,6 +120,12 @@ pc.extend(pc.fw, function() {
             if (this.controller) {
                 this.controller = null;
             }
+
+            this.loader.destroy();
+            this.loader = null;
+
+            this.scene = null;
+            this.graphicsDevice = null;
         }
     };
 
