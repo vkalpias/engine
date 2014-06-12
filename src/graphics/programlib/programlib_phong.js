@@ -539,10 +539,33 @@ pc.gfx.programlib.phong = {
         code += "\n"; // End of uniform declarations
 
         if (numShadowLights > 0) {
-            code += 'float unpackFloat(vec4 rgbaDepth)\n';
+            // http://devmaster.net/posts/3002/shader-effects-shadow-mapping
+            code += 'float ChebychevInequality(vec2 moments, float t)\n';
+            code += '{\n';
+            // No shadow if depth of fragment is in front
+            code += '    if (t <= moments.x)\n';
+            code += '        return 1.0;\n';
+
+            // Calculate variance, which is actually the amount of
+            // error due to precision loss from fp32 to RG/BA
+            // (moment1 / moment2)
+            code += '    float variance = moments.y - (moments.x * moments.x);\n';
+            code += '    variance = max(variance, 0.02);\n';
+    
+            // Calculate the upper bound
+            code += '    float d = t - moments.x;\n';
+            code += '    return variance / (variance + d * d);\n';
+            code += '}\n\n';
+
+            code += 'float unpackHalf(vec2 packedHalf)\n';
+            code += '{\n';
+            code += '    return packedHalf.x + (packedHalf.y / 255.0);\n';
+            code += '}\n\n';
+
+            code += 'float unpackFloat(vec4 packedFloat)\n';
             code += '{\n';
             code += '    const vec4 bitShift = vec4(1.0 / (256.0 * 256.0 * 256.0), 1.0 / (256.0 * 256.0), 1.0 / 256.0, 1.0);\n';
-            code += '    float depth = dot(rgbaDepth, bitShift);\n';
+            code += '    float depth = dot(packedFloat, bitShift);\n';
             code += '    return depth;\n';
             code += '}\n\n';
 
@@ -557,51 +580,9 @@ pc.gfx.programlib.phong = {
             code += "    if (contained)\n";
             code += "    {\n";
             if (false) {
-                code += "        depth = upackRgbaDepthToFloat(texture2D(shadowMap, shadowCoord.xy));\n";
+                code += "        depth = unpackFloat(texture2D(shadowMap, shadowCoord.xy));\n";
                 code += "        return (depth < shadowCoord.z) ? 0.3 : 1.0;\n";
             } else {
-                code += "        float shadowAccum = 0.0;\n";
-
-/*
-                code += "        const float shadowContrib = 1.0 / 9.0;\n";
-                code += "        float xoffset = 1.0 / sp[0];\n"; // 1/shadow map width
-                code += "        float yoffset = 1.0 / sp[1];\n"; // 1/shadow map height
-                code += "        float dx0 = -1.25 * xoffset;\n";
-                code += "        float dy0 = -1.25 * yoffset;\n";
-                code += "        float dx1 = 1.25 * xoffset;\n";
-                code += "        float dy1 = 1.25 * yoffset;\n";
-
-                // Vector equivalent to vec4(1.0/(256.0*256.0*256.0), 1.0/(256.0*256.0), 1.0/256.0, 1.0)";
-                code += "        const vec4 bit_shift = vec4(5.96046e-08, 1.52588e-05, 0.00390625, 1.0);\n";
-
-                code += "        depth = dot(texture2D(shadowMap, shadowCoord.xy + vec2(dx0, dy0)), bit_shift);\n";
-                code += "        shadowAccum += (depth < shadowCoord.z) ? 0.0 : shadowContrib;\n";
-
-                code += "        depth = dot(texture2D(shadowMap, shadowCoord.xy + vec2(0.0, dy0)), bit_shift);\n";
-                code += "        shadowAccum += (depth < shadowCoord.z) ? 0.0 : shadowContrib;\n";
-
-                code += "        depth = dot(texture2D(shadowMap, shadowCoord.xy + vec2(dx1, dy0)), bit_shift);\n";
-                code += "        shadowAccum += (depth < shadowCoord.z) ? 0.0 : shadowContrib;\n";
-
-                code += "        depth = dot(texture2D(shadowMap, shadowCoord.xy + vec2(dx0, 0.0)), bit_shift);\n";
-                code += "        shadowAccum += (depth < shadowCoord.z) ? 0.0 : shadowContrib;\n";
-
-                code += "        depth = dot(texture2D(shadowMap, shadowCoord.xy), bit_shift);\n";
-                code += "        shadowAccum += (depth < shadowCoord.z) ? 0.0 : shadowContrib;\n";
-
-                code += "        depth = dot(texture2D(shadowMap, shadowCoord.xy + vec2(dx1, 0.0)), bit_shift);\n";
-                code += "        shadowAccum += (depth < shadowCoord.z) ? 0.0 : shadowContrib;\n";
-
-                code += "        depth = dot(texture2D(shadowMap, shadowCoord.xy + vec2(dx0, dy1)), bit_shift);\n";
-                code += "        shadowAccum += (depth < shadowCoord.z) ? 0.0 : shadowContrib;\n";
-
-                code += "        depth = dot(texture2D(shadowMap, shadowCoord.xy + vec2(0.0, dy1)), bit_shift);\n";
-                code += "        shadowAccum += (depth < shadowCoord.z) ? 0.0 : shadowContrib;\n";
-
-                code += "        depth = dot(texture2D(shadowMap, shadowCoord.xy + vec2(dx1, dy1)), bit_shift);\n";
-                code += "        shadowAccum += (depth < shadowCoord.z) ? 0.0 : shadowContrib;\n";
-*/
-
                 code += "        float xoffset = 1.0 / sp[0];\n"; // 1/shadow map width
                 code += "        float yoffset = 1.0 / sp[1];\n"; // 1/shadow map height
                 code += "        float dx0 = -xoffset;\n";
@@ -641,9 +622,7 @@ pc.gfx.programlib.phong = {
                 code += "        shadowValues.z = mix(shadowKernel[1][1], shadowKernel[1][0], fractionalCoord.y);\n";
                 code += "        shadowValues.w = mix(shadowKernel[1][2], shadowKernel[1][1], fractionalCoord.y);\n";
 
-                code += "        shadowAccum = 1.0 - dot( shadowValues, vec4( 1.0 ) );\n";
-
-                code += "        return shadowAccum;\n";
+                code += "        return 1.0 - dot( shadowValues, vec4( 1.0 ) );\n";
             }
             code += "    }\n";
             code += "    else\n";
